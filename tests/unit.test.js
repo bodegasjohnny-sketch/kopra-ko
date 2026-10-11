@@ -102,10 +102,13 @@ test('FIX7 sync errors are surfaced (lastSyncError) and cleared on success',asyn
   const bad={pullSince:async()=>{throw new Error('Server error 500')},upsert:async()=>{}};await assert.rejects(Sync.sync(s,bad),/500/);
   assert.match((await s.meta('lastSyncError')).message,/500/);await Sync.sync(s,TriggerServer());assert.equal(await s.meta('lastSyncError'),null)});
 // ---------- FIX 4 / SF: service worker + files ----------
-test('FIX4 sw never caches Supabase/API/cross-origin; cache name from APP_VERSION',()=>{const ctx={self:{location:{origin:'https://copra.johnnybodegas.com'},addEventListener(){}},importScripts(){ctx.self.APP_VERSION='T'},URL};
-  vm.runInNewContext(fs.readFileSync(path.join(ROOT,'sw.js'),'utf8')+';this.isApi=isApi;this.V=V',ctx);const u=x=>new URL(x);
+test('FIX4 sw never caches Supabase/API/cross-origin; cache name embedded in sw.js',()=>{const ctx={self:{location:{origin:'https://copra.johnnybodegas.com'},addEventListener(){}},URL,caches:{},Request:function(u){this.url=u}};
+  const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');vm.runInNewContext(src+';this.isApi=isApi;this.V=V',ctx);const u=x=>new URL(x);
   assert.ok(ctx.isApi(u('https://abc.supabase.co/rest/v1/batches')));assert.ok(ctx.isApi(u('https://copra.johnnybodegas.com/auth/v1/token')));assert.ok(ctx.isApi(u('https://cdn.example.com/x.js')));
-  assert.ok(!ctx.isApi(u('https://copra.johnnybodegas.com/app.js')));assert.equal(ctx.V,'kopra-T');assert.match(fs.readFileSync(path.join(ROOT,'version.js'),'utf8'),/APP_VERSION='1\.3\.0'/)});
+  assert.ok(!ctx.isApi(u('https://copra.johnnybodegas.com/app.js')));const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];
+  assert.equal(ver,'1.3.1');assert.equal(ctx.V,'kopra-'+ver)});
+test('v1.3.1 BLOCKER1 sw.js embeds the release version (bytes change every release), no importScripts, cache:reload',()=>{const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');
+  const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];assert.ok(src.includes(`const SW_VERSION='${ver}'`));assert.ok(!/importScripts/.test(src));assert.ok(src.includes("cache:'reload'"))});
 test('SF CNAME + README signup note',()=>{assert.equal(fs.readFileSync(path.join(ROOT,'CNAME'),'utf8').trim(),'copra.johnnybodegas.com');assert.match(fs.readFileSync(path.join(ROOT,'README.md'),'utf8'),/disable.*sign.?ups/i)});
 test('SF sync UI hidden by default (flag)',()=>{const s=fs.readFileSync(path.join(ROOT,'app.js'),'utf8');assert.ok(s.includes("${FLAGS?`<div class=\"card\" id=\"synccard\">"));assert.ok(s.includes('async function runSync(loud){if(!FLAGS)return;'))});
 
@@ -172,7 +175,7 @@ test('v1.3 FIX4 projection for drying batch: copra range, value at Settings pric
   const d=clone(SEED);d.batches.push({id:'n',no:11,rawKg:2000,buyTotal:19000,copraKg:0,deleted:false});d.expenses.push({id:'g',batch_id:'n',category:'Gas',amount:200,deleted:false});
   const k=Calc.compute(d,TODAY),r=k.rows.find(x=>x.no===11),done=k.rows.filter(x=>x.copraKg>0);const W=a=>a.reduce((t,x)=>t+x.copraKg,0)/a.reduce((t,x)=>t+x.rawKg,0);
   const y=0.7*W(done.slice(-5))+0.3*W(done);near(r.proj.yield,y,1e-12);near(r.proj.copra,2000*y,1e-6);near(r.proj.value,2000*y*44,1e-6);
-  const ys=done.map(x=>x.copraKg/x.rawKg);near(r.proj.low,2000*Math.min(...ys),1e-6);near(r.proj.high,2000*Math.max(...ys),1e-6);
+  const ys=done.map(x=>x.copraKg/x.rawKg).sort((a,b)=>a-b).slice(1,-1);near(r.proj.low,2000*ys[0],1e-6);near(r.proj.high,2000*ys[ys.length-1],1e-6);
   near(r.proj.uling,2000*0.22*603/1878,1e-6);near(r.proj.profit,2000*y*44-19000-200,1e-6);near(k.dry.copra,r.proj.copra,1e-9);near(k.dry.profit,r.proj.profit,1e-9);assert.equal(k.dry.n,1);
   assert.equal(k.bid.be,10.15);assert.equal(k.bid.good,9.65)}); // drying batch does not move the bid
 test('v1.3 FIX5 bills linked to a drying batch reduce projected profit live',()=>{const d=clone(SEED);d.batches.push({id:'n',no:11,rawKg:2000,buyTotal:19000,copraKg:0,deleted:false});
@@ -181,8 +184,38 @@ test('v1.3 FIX5 bills linked to a drying batch reduce projected profit live',()=
 test('v1.3 FIX4 actual replaces projection: variance + accuracy (backtest uses only earlier batches)',()=>{const k=Calc.compute(SEED,TODAY);
   const r10=k.rows.find(r=>r.no===10),prior=k.rows.filter(r=>r.no<10);const W=a=>a.reduce((t,x)=>t+x.copraKg,0)/a.reduce((t,x)=>t+x.rawKg,0);
   near(r10.proj.copra,5780*(0.7*W(prior.slice(-5))+0.3*W(prior)),1e-6);near(r10.proj.variancePct,(1329-r10.proj.copra)/r10.proj.copra,1e-12);
-  assert.equal(k.rows[0].proj,null);assert.equal(k.accuracy.n,9);near(k.accuracy.mape,0.0534,0.001);assert.equal(k.accuracy.inRange,8)});
+  assert.equal(k.rows[0].proj,null);assert.equal(k.accuracy.n,9);near(k.accuracy.mape,0.0534,0.001);assert.equal(k.accuracy.inRange,6)});
 test('v1.3 unchanged seeded totals + bid guide',()=>{const k=Calc.compute(SEED,TODAY);near(k.copraNet,36856.66);near(k.combined,55549.66);assert.equal(k.bid.be,10.15);assert.equal(k.bid.good,9.65);near(k.realized,36856.66)});
 test('v1.3 backup: uling_sales validated (caps, oversell of pool)',()=>{const o=clone(SEED);o.uling_sales[0].price=999;assert.ok(Calc.validateBackup(o).some(e=>/uling_sales\[0\]/.test(e)));
   const o2=clone(SEED);o2.uling_sales.push({id:'zz',kg:5000,price:31});assert.ok(Calc.validateBackup(o2).some(e=>/more than uling made/.test(e)))});
 test('v1.3 sync tables + schema include uling_sales',()=>{assert.ok(DB.TABLES.includes('uling_sales'));assert.ok(fs.readFileSync(path.join(ROOT,'supabase/schema.sql'),'utf8').includes("'charcoal','uling_sales'"));assert.equal(DB.DB_VERSION,2)});
+// ================= v1.3.1 =================
+test('v1.3.1 SF projection range drops min+max yield when n>=5, full range when n<5',()=>{const d=clone(SEED);d.batches[0].copraKg=900;d.sales[0].kg=900; // outlier: batch 1 yield 87.6%
+  d.batches.push({id:'n',no:11,rawKg:1000,buyTotal:9000,copraKg:0,deleted:false});const r=row(d,11),ys0=d.batches.filter(b=>b.copraKg).map(b=>b.copraKg/b.rawKg).sort((a,b)=>a-b);assert.ok(r.proj.high/1000<0.3,`outlier ignored, high ${r.proj.high}`);near(r.proj.high,1000*ys0[ys0.length-2],1e-6);near(r.proj.low,1000*ys0[1],1e-6);
+  const few=clone(SEED);few.batches=few.batches.filter(b=>b.no<=3);few.sales=few.sales.filter(s=>few.batches.some(b=>b.id===s.batch_id));few.batches.push({id:'n',no:11,rawKg:1000,buyTotal:9000,copraKg:0,deleted:false});
+  const r2=row(few,11),ys=few.batches.filter(b=>b.copraKg).map(b=>b.copraKg/b.rawKg);near(r2.proj.low,1000*Math.min(...ys),1e-6);near(r2.proj.high,1000*Math.max(...ys),1e-6)});
+test('v1.3.1 BLOCKER2 poolCheck refuses burn delete/edit that makes made < sold',()=>{const d=clone(SEED);const k=Calc.compute(d,TODAY);const b6=d.charcoal.find(c=>c.no===6);
+  assert.match(Calc.poolCheck(k,b6,null),/already sold/);assert.match(Calc.poolCheck(k,b6,{...b6,ulingKg:10}),/already sold/);assert.match(Calc.poolCheck(k,b6,{...b6,status:'burning'}),/already sold/);
+  assert.equal(Calc.poolCheck(k,b6,{...b6,ulingKg:130}),null);assert.equal(Calc.poolCheck(k,d.charcoal.find(c=>c.no===7),null),null);
+  const d2=clone(SEED);d2.uling_sales.pop();assert.equal(Calc.poolCheck(Calc.compute(d2,TODAY),d2.charcoal.find(c=>c.no===6),null),null)});
+test('v1.3.1 BLOCKER2 refused delete keeps backup importable',async()=>{const st=await fresh();const s=await st.snapshot();
+  assert.ok(Calc.poolCheck(Calc.compute(s,TODAY),s.charcoal.find(c=>c.no===6),null));assert.deepEqual(Calc.validateBackup(await st.snapshot()),[])});
+test('v1.3.1 BLOCKER3 batch with an unassigned sale is excluded from yield/bid/projection until assigned',()=>{const d=clone(SEED);const b=d.batches.find(x=>x.no===10);
+  b.copraKg=723; // raw left at 5,780 (bug scenario): its 12.5% yield must NOT reach the bid
+  d.sales.find(x=>x.batch_id===b.id).kg=723;d.sales.push({id:'un',batch_id:null,from_batch:b.id,kg:606,price:44,deleted:false});
+  const k=Calc.compute(d,TODAY),S2=clone(SEED),others=Calc.compute({...S2,batches:S2.batches.filter(x=>x.no!==10),sales:S2.sales.filter(x=>x.batch_id!==b.id)},TODAY);
+  assert.equal(k.bid.excluded,1);near(k.bid.beRaw,others.bid.beRaw,1e-9);assert.ok(k.bid.be>=10.1,`be ${k.bid.be}`);const r10=k.rows.find(r=>r.no===10);assert.ok(r10.pending);assert.equal(r10.proj.variancePct,undefined);
+  d.sales.find(x=>x.id==='un').batch_id=d.batches.find(x=>x.no===9).id;d.batches.find(x=>x.no===9).copraKg+=606;const k2=Calc.compute(d,TODAY);assert.equal(k2.bid.excluded,0);assert.equal(k2.rows.find(r=>r.no===10).pending,false)});
+test('v1.3.1 BLOCKER3 documents the bug: without exclusion the bid would drop to ~₱9.24',()=>{const d=clone(SEED);d.batches.find(x=>x.no===10).copraKg=723;
+  const be=Calc.compute(d,TODAY).bid.be;assert.ok(be<9.3&&be>9.2,`be ${be}`)});
+test('v1.3.1 SF unassigned sale on import: caps + from_batch checked, still flagged after import',async()=>{const o=clone(SEED);o.sales.push({id:'un1',batch_id:null,from_batch:o.batches[9].id,kg:606,price:999});
+  assert.ok(Calc.validateBackup(o).some(e=>/Copra price/.test(e)));const o2=clone(SEED);o2.sales.push({id:'un2',batch_id:null,kg:250000,price:44});assert.ok(Calc.validateBackup(o2).some(e=>/Kg sold/.test(e)));
+  const o3=clone(SEED);o3.sales.push({id:'un3',batch_id:null,from_batch:'x" onerror="',kg:6,price:44});assert.ok(Calc.validateBackup(o3).some(e=>/from_batch/.test(e)));
+  const o5=clone(SEED);o5.sales.push({id:'un5',batch_id:'missing',kg:6,price:44});assert.ok(Calc.validateBackup(o5).some(e=>/batch not found/.test(e)));
+  const o4=clone(SEED);o4.sales.push({id:'un4',batch_id:null,from_batch:o4.batches[9].id,kg:606,price:44});const st=DB.Store();await st.replaceAll(o4);const k=Calc.compute(await st.snapshot(),TODAY);
+  near(k.unassigned.kg,606);assert.equal(k.bid.excluded,1)});
+test('v1.3.1 SF migration crash-safe: crash after pool sale written, before burn flipped -> no duplicate',async()=>{const old=clone(SEED);old.uling_sales=[];old.charcoal.forEach(c=>{if(c.ulingKg>0){c.status='sold';c.price=31}});
+  const st=DB.Store();for(const t of ['settings','batches','sales','expenses','charcoal'])await st.adapter.putMany(t,old[t]);await st.adapter.put('meta',{id:'seeded',at:'x'});
+  const b1=old.charcoal[0];await st.adapter.put('uling_sales',{id:'pre',kg:b1.ulingKg,price:31,from_burn:b1.id,deleted:false,synced:false});
+  await st.migrate();const s=await st.snapshot();assert.equal(s.uling_sales.length,6);assert.ok(s.charcoal.every(c=>c.status!=='sold'));near(Calc.compute(s,TODAY).char.ulingSales,18693);
+  const src=fs.readFileSync(path.join(ROOT,'db.js'),'utf8');assert.ok(src.indexOf("await a.put('uling_sales',u)")<src.indexOf("await S.save('charcoal',c)"))});

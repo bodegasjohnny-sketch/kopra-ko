@@ -55,6 +55,8 @@ create table if not exists uling_sales (id uuid primary key, team_id uuid not nu
   date date, kg numeric not null check (kg > 0 and kg <= 100000), price numeric not null check (price > 0 and price <= 200),
   buyer text check (length(buyer) <= 120), from_burn uuid);
 alter table charcoal alter column price drop not null;
+-- v1.3.1: an unassigned copra sale remembers which batch it was split from (that batch is excluded from yield/bid until resolved)
+alter table sales add column if not exists from_batch uuid;
 
 do $$ declare t text; begin
   foreach t in array array['settings','batches','sales','expenses','charcoal','uling_sales'] loop

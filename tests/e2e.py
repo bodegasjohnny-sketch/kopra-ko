@@ -95,17 +95,29 @@ with sync_playwright() as p:
   pg.click("nav button[data-v=rec]");pg.locator("button[data-del='batches|"+dr['id']+"']").click();pg.wait_for_timeout(300)
   # Hayag edit (bug): batch #10 -> 3143.5 kg, ₱9.77, Asarez 10.5, gas 400, copra 723
   pg.click("nav button[data-v=rec]");b10=pg.evaluate("D.batches.find(b=>b.no===10&&!b.deleted).id");pg.locator("button[data-ed='batches|"+b10+"']").click()
+  pg.fill("#f_copra","723");pg.click("#f_save");pg.wait_for_timeout(300)
+  ok("v1.3.1 BLOCKER3 copra cut below sold with raw unchanged -> prompts for corrected raw kg","corrected raw kg" in pg.inner_text("#f_err") and pg.is_visible("#f_rawfix") and pg.evaluate("D.batches.find(b=>b.no===10&&!b.deleted).copraKg")==1329)
+  pg.screenshot(path="screenshots/28-hayag-raw-prompt.png",full_page=True)
   pg.fill("#f_raw","3143.5");pg.fill("#f_buy","9.77");pg.fill("#f_as","10.5");pg.fill("#f_gas","400");pg.fill("#f_copra","723");save(pg)
   K6=pg.evaluate("window.__K");r10=[x for x in K6['rows'] if x['no']==10][0]
   ok("v1.3 FIX1 Hayag edit saves (no 'less than already sold' block)",r10['copraKg']==723 and r10['rawKg']==3143.5 and "not assigned" in pg.inner_text("#nextbid"),str({k:r10.get(k) for k in ['copraKg','rawKg','soldKg']})+pg.inner_text("#nextbid")[:120])
   ok("v1.3 FIX1 excess 606 kg sale kept as unassigned (revenue not lost)",abs(K6['unassigned']['kg']-606)<.01 and abs(r10['soldKg']-723)<.01)
+  ok("v1.3.1 BLOCKER3 batch #10 excluded from bid/yield while sale unassigned (bid stays ≥ ₱10.10, not ₱9.24)",K6['bid']['excluded']==1 and K6['bid']['be']>=10.1 and r10['pending'],str(K6['bid']['be']))
   pg.screenshot(path="screenshots/26-hayag-edit-fixed.png",full_page=True)
   pg.click("nav button[data-v=home]");pg.wait_for_timeout(300);ok("v1.3 unassigned-sale warning shown",pg.locator("#unassigned").count()==1)
+  ok("v1.3.1 BLOCKER3 bid guide shows exclusion note","not used in yield" in pg.inner_text("#v-home"));pg.locator("#bidexcluded").first.screenshot(path="screenshots/29-bid-excluded-note.png")
   pg.wait_for_selector("#toast",state="hidden");pg.locator("#charcoal").screenshot(path="screenshots/27-uling-pool.png")
   ok("v1.3 uling pool card","Uling on hand" in pg.inner_text("#charcoal") and "Bagol not yet burned" in pg.inner_text("#charcoal"))
   # restore original batch 10 for later assertions: delete edited data via reset? keep raw consistent: re-edit to original values
   pg.click("nav button[data-v=rec]");pg.locator("button[data-ed='batches|"+b10+"']").click();pg.fill("#f_raw","5780");pg.fill("#f_buy","10");pg.fill("#f_copra","1329");save(pg)
   un=pg.evaluate("D.sales.find(s=>!s.deleted&&!s.batch_id).id");pg.click("nav button[data-v=rec]");pg.locator("button[data-ed='sales|"+un+"']").click();pg.select_option("#f_batch",b10);pg.click("#f_st button[data-s=part]");pg.fill("#f_kg","606");save(pg)
+  ok("v1.3.1 BLOCKER3 resolved -> batch back in bid maths",pg.evaluate("window.__K.bid.excluded")==0 and pg.evaluate("window.__K.bid.be")>=10.1,str(pg.evaluate("window.__K.bid")))
+  # BLOCKER2: deleting a finished burn whose uling is already sold is refused
+  b6=pg.evaluate("D.charcoal.find(c=>c.no===6&&!c.deleted).id");pg.click("nav button[data-v=rec]");pg.locator("button[data-del='charcoal|"+b6+"']").click();pg.wait_for_timeout(300)
+  ok("v1.3.1 BLOCKER2 burn delete refused when its uling is sold (pool never negative)","already sold" in pg.inner_text("#v-rec") and pg.evaluate("D.charcoal.some(c=>c.id==='"+b6+"'&&!c.deleted)") and pg.evaluate("window.__K.char.ulingOnHand")>=0)
+  pg.screenshot(path="screenshots/30-burn-delete-refused.png",full_page=True)
+  pg.locator("button[data-ed='charcoal|"+b6+"']").click();pg.fill("#f_uling","10");pg.click("#f_save");pg.wait_for_timeout(300)
+  ok("v1.3.1 BLOCKER2 burn edit that makes made < sold refused","already sold" in pg.inner_text("#f_err"))
   ok("v1.3 unassigned sale re-assigned to batch -> Complete again",pg.evaluate("window.__K.unassigned.kg")==0 and [x for x in pg.evaluate("window.__K.rows") if x['no']==10][0]['statusLabel']=='Complete')
   # persistence across reload (IndexedDB)
   pg.reload();pg.wait_for_function("window.__K");ok("data persists after reload",abs(pg.evaluate("window.__K.raw")-31366)<.01)
@@ -145,7 +157,7 @@ with sync_playwright() as p:
   ctx.set_offline(True);pg.reload();pg.wait_for_function("window.__K");ok("works offline (SW cache)",pg.evaluate("Object.keys(Chart.instances).length")>=4);ctx.set_offline(False)
   ok("no JS errors",not errs,"; ".join(errs[:3]))
   f=b.new_page(viewport={"width":390,"height":844});f.goto(U+"?sync=1");f.wait_for_function("window.__K");f.click("nav button[data-v=more]");ok("SF sync card shown only with flag",f.locator("#synccard").count()==1)
-  ok("version shown v1.3.0","v1.3.0" in f.inner_text("#v-more"))
+  ok("version shown v1.3.1","v1.3.1" in f.inner_text("#v-more"))
   # v1.2 -> v1.3 IndexedDB migration on a phone with existing data
   m=b.new_context(viewport={"width":390,"height":844});mp=m.new_page();mp.goto(U.replace("index.html","manifest.webmanifest"))
   mp.evaluate("""async()=>{const src=await (await fetch('seed.js')).text();const SEED=new Function(src+';return SEED')();
@@ -158,6 +170,25 @@ with sync_playwright() as p:
   ok("v1.3 MIGRATION: v1.2 IndexedDB upgraded, 6 sold burns -> pool sales",mp.evaluate("window.__migrated")==6 and abs(KM['char']['ulingSales']-18693)<.01)
   ok("v1.3 MIGRATION: no data lost (phone's own batch kept, totals intact)",any(r['source']=='Phone data v1.2' for r in KM['rows']) and abs(KM['raw']-(29366+1234))<.01 and abs(KM['copraNet']-(36856.66-11106))<.01)
   mp.reload();mp.wait_for_function("window.__K");ok("v1.3 MIGRATION idempotent on reload",mp.evaluate("window.__migrated")==0 and mp.evaluate("D.uling_sales.length")==6);m.close()
+  # v1.3.1 BLOCKER1: real SW upgrade. Serve the v1.2.0 release, install, then swap the served files to this build.
+  import subprocess,os,shutil,time
+  base="/tmp/kopra-upgrade";shutil.rmtree(base,ignore_errors=True);os.makedirs(base+"/v12")
+  subprocess.run("git archive 2daf114 | tar -x -C "+base+"/v12",shell=True,check=True)
+  shutil.copytree(".",base+"/new",ignore=shutil.ignore_patterns(".git","tests","screenshots","node_modules"))
+  os.symlink(base+"/v12",base+"/cur");srv=subprocess.Popen([sys.executable,"-m","http.server","8766","--bind","127.0.0.1","--directory",base+"/cur"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);time.sleep(1)
+  try:
+    UU="http://127.0.0.1:8766/index.html";uc=b.new_context(viewport={"width":390,"height":844});up=uc.new_page();up.add_init_script("window.__TODAY__='2026-10-11T12:00:00'")
+    up.goto(UU);up.wait_for_function("window.__K");up.wait_for_function("navigator.serviceWorker.controller!==null",timeout=15000)
+    ok("UPGRADE: v1.2.0 installed and controlled by its SW",up.evaluate("self.APP_VERSION")=="1.2.0" and up.evaluate("caches.keys()")==["kopra-1.2.0"],str(up.evaluate("caches.keys()")))
+    up.evaluate("(async()=>{const r=await store.save('batches',{no:11,source:'Phone batch before upgrade',rawKg:1000,buyTotal:9000,copraKg:0})})()");up.wait_for_timeout(300)
+    os.remove(base+"/cur");os.symlink(base+"/new",base+"/cur")   # server now serves v1.3.1
+    up.evaluate("navigator.serviceWorker.getRegistration().then(r=>r.update())")
+    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.3.1'",timeout=20000,polling=300)
+    up.reload();up.wait_for_function("window.__K");KU=up.evaluate("window.__K")
+    ok("UPGRADE: SW updated, cache bumped to kopra-1.3.1 (old cache gone), page runs v1.3.1",up.evaluate("self.APP_VERSION")=="1.3.1" and up.evaluate("caches.keys()")==["kopra-1.3.1"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.3.1'\"))"))
+    ok("UPGRADE: migration ran (6 sold burns -> pool sales), no data lost",up.evaluate("D.uling_sales.length")==6 and abs(KU['char']['ulingSales']-18693)<.01 and any(r['source']=='Phone batch before upgrade' for r in KU['rows']) and abs(KU['raw']-30366)<.01)
+    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.3.1 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.3.1");uc.close()
+  finally:srv.terminate();srv.wait()
   # desktop
   d=b.new_page(viewport={"width":1366,"height":900});d.add_init_script("window.__TODAY__='2026-10-11T12:00:00'");d.goto(U);d.wait_for_function("window.__K");d.wait_for_timeout(600);d.screenshot(path="screenshots/12-dashboard-desktop.png",full_page=True)
   b.close()

@@ -5,7 +5,7 @@ const TABLES=['settings','batches','sales','expenses','charcoal','uling_sales'];
 const DB_VERSION=2; // v1.2 used 1; v2 adds the uling_sales store (onupgradeneeded only ADDS stores, never deletes)
 // Only these fields are ever kept from a backup file (anything else is dropped).
 const FIELDS={settings:['id','startDate','copraPrice','targetMargin','bagolRatio','ulingPrice','partners','budget'],batches:['id','no','dev','date','source','rawKg','buyTotal','asarez','copraKg'],
-  sales:['id','batch_id','date','kg','price','buyer'],expenses:['id','batch_id','date','category','amount','note'],charcoal:['id','no','dev','date','bagolKg','ulingKg','price','status','buyer'],uling_sales:['id','date','kg','price','buyer','from_burn'],
+  sales:['id','batch_id','from_batch','date','kg','price','buyer'],expenses:['id','batch_id','date','category','amount','note'],charcoal:['id','no','dev','date','bagolKg','ulingKg','price','status','buyer'],uling_sales:['id','date','kg','price','buyer','from_burn'],
   common:['updated_at','deleted','seq']};
 const pick=(t,r)=>{const o={};FIELDS[t].concat(FIELDS.common).forEach(k=>{if(r[k]!==undefined)o[k]=r[k]});return o};
 const getCalc=()=>typeof Calc!=='undefined'?Calc:require('./calc.js');
@@ -26,10 +26,13 @@ function migrateData(o,mk){const out={...o};out.uling_sales=(o.uling_sales||[]).
   return out}
 function Store(adapter){const a=adapter||memoryAdapter();const S={adapter:a,TABLES,uuid,now,
   // Fresh random IDs per install (refs remapped); records stamped now and unsynced.
-  remap(data){const map={},id=o=>map[o]||(map[o]=uuid()),out={},ts=now();for(const t of TABLES)out[t]=(data[t]||[]).filter(r=>!r.deleted).map(r=>{const x={...r,id:id(r.id),updated_at:ts,deleted:false,synced:false};if(x.batch_id)x.batch_id=id(x.batch_id);if(x.from_burn)x.from_burn=id(x.from_burn);delete x.server_at;delete x.seq;return x});return out},
+  remap(data){const map={},id=o=>map[o]||(map[o]=uuid()),out={},ts=now();for(const t of TABLES)out[t]=(data[t]||[]).filter(r=>!r.deleted).map(r=>{const x={...r,id:id(r.id),updated_at:ts,deleted:false,synced:false};if(x.batch_id)x.batch_id=id(x.batch_id);if(x.from_burn)x.from_burn=id(x.from_burn);if(x.from_batch)x.from_batch=id(x.from_batch);delete x.server_at;delete x.seq;return x});return out},
   async migrate(){if(await S.meta('mig13'))return 0;let n=0;const snap=await S.snapshot();const m=migrateData(snap,x=>({...x,id:uuid(),updated_at:now(),deleted:false,synced:false}));
+    // Crash-safe order: 1) write the pool sale, 2) only then flip the burn to 'done'. If the app dies between the two,
+    // the next run sees the sale (from_burn) and only flips the status — never a duplicate sale, never a lost one.
+    for(const u of m.uling_sales)if(!snap.uling_sales.some(x=>x.id===u.id))await a.put('uling_sales',u);
     for(const c of m.charcoal){const o=snap.charcoal.find(x=>x.id===c.id);if(o&&o.status!==c.status){await S.save('charcoal',c);n++}}
-    for(const u of m.uling_sales)if(!snap.uling_sales.some(x=>x.id===u.id))await a.put('uling_sales',u);await S.meta('mig13',true);return n},
+    await S.meta('mig13',true);return n},
   async seedIfEmpty(seed){const m=await a.get('meta','seeded');if(m)return false;const d=S.remap(seed);for(const t of TABLES)await a.putMany(t,d[t]);await a.put('meta',{id:'seeded',at:now()});await a.put('meta',{id:'mig13',v:true});await a.put('meta',{id:'seedOnly',v:true});return true},
   async device(){let d=await S.meta('device');if(!d){d=Math.random().toString(36).slice(2,4).toUpperCase().padEnd(2,'X');await S.meta('device',d)}return d},
   async snapshot(){const o={};for(const t of TABLES)o[t]=await a.all(t);return o},

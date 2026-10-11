@@ -1,2 +1,3 @@
-// Bump on EVERY release (semver). sw.js derives its cache name from this, so phones drop the old cache and fetch new files.
-self.APP_VERSION='1.3.0';
+// Bump on EVERY release (semver) — and bump SW_VERSION in sw.js to the SAME value (a unit test enforces this).
+// The version string must live inside sw.js itself so its bytes change; otherwise installed phones never see an update.
+self.APP_VERSION='1.3.1';

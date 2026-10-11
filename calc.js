@@ -3,18 +3,21 @@
 const sum=(a,f)=>a.reduce((t,x)=>t+(+f(x)||0),0);
 const r2=n=>Math.round(n*100)/100;
 // Projection weights (documented in README): projected yield = 70% recent (last 5 finished batches, raw-weighted) + 30% lifetime.
-const PROJ={recentN:5,wRecent:0.7};
+const PROJ={recentN:5,wRecent:0.7,trimFrom:5};
 function projYield(done){ // done: finished batches (copra known), in batch order
   if(!done.length)return null;const w=(a)=>sum(a,r=>r.copraKg)/sum(a,r=>r.rawKg);
-  const recent=done.slice(-PROJ.recentN),ys=done.map(r=>r.copraKg/r.rawKg);
-  return {y:PROJ.wRecent*w(recent)+(1-PROJ.wRecent)*w(done),recent:w(recent),lifetime:w(done),low:Math.min(...ys),high:Math.max(...ys),n:done.length};}
+  const recent=done.slice(-PROJ.recentN),ys=done.map(r=>r.copraKg/r.rawKg).sort((a,b)=>a-b);
+  // Range ignores outliers: with 5+ batches drop the single worst and best yield (trimmed range); fewer -> full min/max.
+  const rng=ys.length>=PROJ.trimFrom?ys.slice(1,-1):ys;
+  return {y:PROJ.wRecent*w(recent)+(1-PROJ.wRecent)*w(done),recent:w(recent),lifetime:w(done),low:rng[0],high:rng[rng.length-1],n:done.length,trimmed:ys.length>=PROJ.trimFrom};}
 const STATUS={drying:'Still drying',unsold:'Not yet sold',part:'Part sold',sold:'Complete'};
 function compute(db,today){
   today=today||new Date();
   const live=a=>(a||[]).filter(x=>!x.deleted);
   const st={settings:(db.settings&&db.settings.find?live(db.settings)[0]:db.settings),batches:live(db.batches),sales:live(db.sales),expenses:live(db.expenses),charcoal:live(db.charcoal),usales:live(db.uling_sales)};
   const s=st.settings,B=st.batches.slice().sort((a,b)=>a.no-b.no);
-  let rows=B.map(b=>{
+  const unassignedAll=st.sales.filter(x=>!x.batch_id||!B.some(b=>b.id===x.batch_id));
+  let rows=B.map(b=>{const pending=unassignedAll.some(x=>x.from_batch===b.id);
     const sales=st.sales.filter(x=>x.batch_id===b.id),exps=st.expenses.filter(x=>x.batch_id===b.id);
     const soldKg=sum(sales,x=>x.kg),salesP=sum(sales,x=>x.kg*x.price),exp=sum(exps,x=>x.amount),gas=sum(exps.filter(x=>x.category==='Gas'),x=>x.amount);
     const copra=+b.copraKg||0,onHand=Math.max(0,copra-soldKg),cost=b.buyTotal+exp;
@@ -27,17 +30,18 @@ function compute(db,today){
       net:salesP-cost,               // cash view: all costs vs sales so far
       realized:salesP-soldCost,      // profit on the sold kg only, at the ACTUAL sale price
       stockCost,stockValue:onHand*s.copraPrice,unrealized:onHand*s.copraPrice-stockCost, // unsold stock at Settings price
-      be:b.rawKg&&copra?copra/b.rawKg*sp-exp/b.rawKg:null,status,statusLabel:STATUS[status]};
+      be:b.rawKg&&copra?copra/b.rawKg*sp-exp/b.rawKg:null,status,statusLabel:STATUS[status],pending};
   });
   // ---- projections (drying batches) + backtest of finished batches (projection made only from batches BEFORE it)
   const ulYieldAll=(()=>{const d=st.charcoal.filter(c=>c.status!=='burning'&&c.ulingKg>0);const bg=sum(d,c=>c.bagolKg);return bg?sum(d,c=>c.ulingKg)/bg:0})();
-  const doneRows=rows.filter(r=>r.copraKg>0),errs=[];
+  // Batches with an unresolved unassigned sale are EXCLUDED from yield / bid / projection maths until it is assigned.
+  const doneRows=rows.filter(r=>r.copraKg>0&&!r.pending),errs=[];
   rows=rows.map(r=>{const prior=doneRows.filter(d=>d.no<r.no||(r.status==='drying'&&d!==r));const py=projYield(r.status==='drying'?doneRows:prior);
     if(!py)return {...r,proj:null};
     const pc=r.rawKg*py.y,proj={yield:py.y,copra:pc,low:r.rawKg*py.low,high:r.rawKg*py.high,value:pc*s.copraPrice,valueLow:r.rawKg*py.low*s.copraPrice,valueHigh:r.rawKg*py.high*s.copraPrice,
       bagol:r.rawKg*s.bagolRatio,uling:r.rawKg*s.bagolRatio*ulYieldAll,ulingValue:r.rawKg*s.bagolRatio*ulYieldAll*s.ulingPrice,n:py.n};
     proj.profit=proj.value-r.buyTotal-r.exp;proj.profitLow=proj.valueLow-r.buyTotal-r.exp;proj.profitHigh=proj.valueHigh-r.buyTotal-r.exp;
-    if(r.copraKg>0){proj.variance=r.copraKg-pc;proj.variancePct=pc?(r.copraKg-pc)/pc:0;proj.inRange=r.copraKg>=proj.low-1e-9&&r.copraKg<=proj.high+1e-9;errs.push(Math.abs(proj.variancePct))}
+    if(r.copraKg>0&&!r.pending){proj.variance=r.copraKg-pc;proj.variancePct=pc?(r.copraKg-pc)/pc:0;proj.inRange=r.copraKg>=proj.low-1e-9&&r.copraKg<=proj.high+1e-9;errs.push(Math.abs(proj.variancePct))}
     return {...r,proj}});
   const drying=rows.filter(r=>r.status==='drying'&&r.proj);
   const dry={n:rows.filter(r=>r.status==='drying').length,raw:sum(rows.filter(r=>r.status==='drying'),r=>r.rawKg),copra:sum(drying,r=>r.proj.copra),low:sum(drying,r=>r.proj.low),high:sum(drying,r=>r.proj.high),
@@ -45,16 +49,16 @@ function compute(db,today){
     profit:sum(drying,r=>r.proj.profit),profitLow:sum(drying,r=>r.proj.profitLow),profitHigh:sum(drying,r=>r.proj.profitHigh)};
   const accuracy={n:errs.length,mape:errs.length?sum(errs,x=>x)/errs.length:null,inRange:rows.filter(r=>r.proj&&r.proj.inRange).length};
   // ---- unassigned copra sales (e.g. part of a sheet row that combined two loads; user should assign it to a batch)
-  const unassigned=st.sales.filter(x=>!x.batch_id||!B.some(b=>b.id===x.batch_id));
+  const unassigned=unassignedAll;
   const unKg=sum(unassigned,x=>x.kg),unP=sum(unassigned,x=>x.kg*x.price);
-  const done=rows.filter(r=>r.copraKg>0);
-  const raw=sum(rows,r=>r.rawKg),rawDone=sum(done,r=>r.rawKg),copra=sum(done,r=>r.copraKg),buyTotal=sum(rows,r=>r.buyTotal);
+  const done=rows.filter(r=>r.copraKg>0),bidRows=done.filter(r=>!r.pending),pendingRows=rows.filter(r=>r.pending);
+  const raw=sum(rows,r=>r.rawKg),rawDone=sum(bidRows,r=>r.rawKg),copra=sum(done,r=>r.copraKg),copraBid=sum(bidRows,r=>r.copraKg),buyTotal=sum(rows,r=>r.buyTotal);
   const batchExp=sum(rows,r=>r.exp),otherExp=sum(st.expenses.filter(x=>!x.batch_id&&x.category!=='Uling'),x=>x.amount);
   const sales=sum(rows,r=>r.sales)+unP,soldKg=sum(rows,r=>r.soldKg)+unKg,onHand=sum(rows,r=>r.onHand);
   const realized=sum(rows,r=>r.realized)+unP-otherExp,unrealized=sum(rows,r=>r.unrealized);
   const copraNet=sales-buyTotal-batchExp-otherExp; // cash view
-  const yld=rawDone?copra/rawDone:0,expPerKg=rawDone?(sum(done,r=>r.exp)+otherExp)/rawDone:0;
-  const hasData=rawDone>0&&copra>0;
+  const yld=rawDone?copraBid/rawDone:0,expPerKg=rawDone?(sum(bidRows,r=>r.exp)+otherExp)/rawDone:0;
+  const hasData=rawDone>0&&copraBid>0;
   const beRaw=yld*s.copraPrice-expPerKg,be=hasData?Math.floor(beRaw*100+1e-9)/100:null,good=hasData?Math.floor((beRaw-s.targetMargin)*100+1e-9)/100:null;
   // ---- uling: ONE combined pool (bagol from all batches -> burns -> uling stock -> sales)
   const C=st.charcoal,Cd=C.filter(c=>c.status!=='burning'&&c.ulingKg>0),Cb=C.filter(c=>c.status==='burning');
@@ -71,16 +75,19 @@ function compute(db,today){
   const room=raw?(copraNet+ulingNet)/raw:0;
   const meri=byCat['Merienda / meals']||0,meriCap=s.budget['Merienda / meals']||0;
   return {rows,raw,copra,buyTotal,batchExp,otherExp,totalExp:batchExp+otherExp,sales,soldKg,onHand,copraNet,realized,unrealized,total:realized+unrealized,
-    unassigned:{kg:unKg,value:unP,list:unassigned},dry,accuracy,projYield:projYield(done),
+    unassigned:{kg:unKg,value:unP,list:unassigned},pending:pendingRows.map(r=>({id:r.id,no:r.no,dev:r.dev,source:r.source})),dry,accuracy,projYield:projYield(bidRows),
     avgBuy:raw?buyTotal/raw:0,avgSell:soldKg?sales/soldKg:0,netPerKg:raw?copraNet/raw:0,margin:sales?copraNet/sales:0,
     costPerKgCopra:copra?(sum(done,r=>r.cost))/copra:0,stockValue:onHand*s.copraPrice,stockCost:sum(rows,r=>r.stockCost),
-    bid:{hasData,yield:yld,expPerKg,sell:s.copraPrice,be,beRaw,good,margin:s.targetMargin,pct:be?s.targetMargin/be:0,gasOnly:Object.keys(byCat).every(c=>c==='Gas'||c==='Uling')},
+    bid:{hasData,excluded:pendingRows.length,yield:yld,expPerKg,sell:s.copraPrice,be,beRaw,good,margin:s.targetMargin,pct:be?s.targetMargin/be:0,gasOnly:Object.keys(byCat).every(c=>c==='Gas'||c==='Uling')},
     char:{hasCosts:ulingExp>0,burns:C,usales:st.usales,bagolDone,inKiln,uling,ulingSoldKg,ulingOnHand,ulingSales,ulingYield,ulingExp,ulingNet,bagolExpected,bagolLeft,bagolOnHand,
       avgPrice:ulingSoldKg?ulingSales/ulingSoldKg:0,potKg:bagolLeft*ulingYield,potP:bagolLeft*ulingYield*s.ulingPrice,bagolBE:s.ulingPrice*ulingYield},
     combined,share:combined/2,copraShare:realized/2,
     time:{days,weeks,months,rawWk:raw/weeks,rawMo:raw/months,copraWk:copra/weeks,copraMo:copra/months,netWk:copraNet/weeks,netMo:copraNet/months,combMo:(copraNet+ulingNet)/months},
     byCat,budget,room,meri:{spent:meri,capPerKg:meriCap,capTotal:meriCap*raw,capBatch:raw&&rows.length?meriCap*raw/rows.length:0,perKg:raw?meri/raw:0}};
 }
+// Uling pool guard: would changing/deleting a burn make uling made < uling already sold? nb = new burn or null (delete).
+function poolCheck(K,ob,nb){const made=b=>b&&b.status!=='burning'&&!b.deleted?(+b.ulingKg||0):0;const after=K.char.uling-made(ob)+made(nb);
+  return after<K.char.ulingSoldKg-1e-9?`Not allowed: uling made would drop to ${Math.round(after*10)/10} kg but ${Math.round(K.char.ulingSoldKg*10)/10} kg is already sold. Delete or reduce uling sales first.`:null}
 // Projection for a NEW batch being typed in the buy form (raw kg + buy total + bills).
 function projectNew(K,s,rawKg,buyTotal,bills){const py=K.projYield;if(!py||!(rawKg>0))return null;const pc=rawKg*py.y;const v=pc*s.copraPrice;
   const ul=rawKg*s.bagolRatio*K.char.ulingYield;return {yield:py.y,copra:pc,low:rawKg*py.low,high:rawKg*py.high,value:v,uling:ul,ulingValue:ul*s.ulingPrice,profit:v-buyTotal-(bills||0),
@@ -134,6 +141,7 @@ function validateBackup(o){const E=[];const T=['settings','batches','sales','exp
     if(!num(r.buyTotal)||r.buyTotal<=0)E.push(`${w}: bad buyTotal`);
     chk(w,validate('buy',{rawKg:r.rawKg,buyPrice:num(r.buyTotal)&&num(r.rawKg)&&r.rawKg>0?r.buyTotal/r.rawKg:NaN,asarez:r.asarez,copraKg:r.copraKg??0}));B.set(r.id,{copra:r.copraKg||0,sold:0})});
   live('sales').forEach((r,i)=>{if(!base('sales',r,i))return;const w=`sales[${i}]`;if(!STR(r.buyer,120))E.push(`${w}: bad buyer`);
+    if(r.from_batch!=null&&(typeof r.from_batch!=='string'||!UUIDISH.test(r.from_batch)))E.push(`${w}: bad from_batch`);
     if(r.batch_id!=null&&!B.has(r.batch_id))E.push(`${w}: batch not found`);else if(r.batch_id!=null)B.get(r.batch_id).sold+=+r.kg||0;chk(w,validate('sale',{kg:r.kg,price:r.price}))});
   for(const[id,b]of B)if(b.sold>b.copra+1e-6)E.push(`batch ${id.slice(0,8)}: sold more copra than made`);
   live('expenses').forEach((r,i)=>{if(!base('expenses',r,i))return;const w=`expenses[${i}]`;if(r.batch_id!=null&&!B.has(r.batch_id))E.push(`${w}: batch not found`);if(!STR(r.note,200))E.push(`${w}: bad note`);chk(w,validate('exp',{amount:r.amount,category:r.category}))});
@@ -143,6 +151,6 @@ function validateBackup(o){const E=[];const T=['settings','batches','sales','exp
   (o.uling_sales?o.uling_sales.filter(r=>r&&r.deleted!==true):[]).forEach((r,i)=>{if(!base('uling_sales',r,i))return;const w=`uling_sales[${i}]`;if(!STR(r.buyer,120))E.push(`${w}: bad buyer`);sold+=+r.kg||0;chk(w,validate('usale',{kg:r.kg,price:r.price}))});
   if(sold>made+1e-6)E.push('Uling sold is more than uling made');
   return E.slice(0,20)}
-const api={compute,r2,validate,validateBackup,isDate,CAPS,projectNew,PROJ,STATUS};
+const api={compute,r2,validate,validateBackup,isDate,CAPS,projectNew,PROJ,STATUS,poolCheck};
 if(typeof module!=='undefined')module.exports=api;else root.Calc=api;
 })(this);

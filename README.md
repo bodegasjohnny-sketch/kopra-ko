@@ -1,4 +1,4 @@
-# Kopra Ko: offline copra + uling tracker (PWA) v1.3.0
+# Kopra Ko: offline copra + uling tracker (PWA) v1.3.1
 Run locally: `python3 -m http.server 8765` → http://127.0.0.1:8765 (the service worker needs http/https).
 Tests:
 - `node --test tests/` (calc, store, validation, sync against a mock that mirrors the DB trigger)
@@ -51,3 +51,12 @@ How ordering works (no phone clock is trusted):
 - The pull cursor is the highest `seq` seen. Each pull re-reads the last 200 seq values to cover transactions that commit out of order; applying a row twice is harmless.
 - A fresh, untouched phone adopts the cloud data instead of uploading a duplicate seed. Restore/reset deletes the current records and inserts the backup with new IDs.
 - Tokens refresh on 401, and errors appear in the sync card.
+
+## v1.3.1 fixes
+- **Updates reach installed phones:** `sw.js` embeds `SW_VERSION` (must equal `APP_VERSION` in `version.js`; a unit test enforces it), so its bytes change every release. Pre-cache uses `cache:'reload'`. E2E test installs v1.2.0, serves v1.3.1, and checks the SW update, cache `kopra-1.3.1`, migration and offline use.
+- **Uling pool never goes negative:** deleting or editing a burn so that uling made < uling sold is refused with a message (delete or reduce uling sales first).
+- **Copra cut below sold kg:** the app asks for the corrected raw kg for that batch (or tick "Raw kg is already correct"). The split-off sale is kept as unassigned (`from_batch`), and that batch is **left out of yield / bid / projections** until the sale is assigned. The bid guide shows a note while this applies.
+- Backup import: unassigned sales get the same caps; `from_batch` is checked.
+- Migration writes the pool sale **before** changing the burn status (crash-safe, idempotent).
+- Projection low–high range ignores the single best and worst yield when there are 5+ batches.
+- DB: run `alter table sales add column if not exists from_batch uuid;` (in schema.sql) before turning sync on.

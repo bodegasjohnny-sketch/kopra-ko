@@ -15,12 +15,13 @@ const S=()=>live('settings')[0];
 async function load(){D=await store.snapshot();K=Calc.compute(D,today());window.__K=K;render()}
 
 function bidHTML(b,small){
- if(!b.hasData)return `<div class="note" id="bidempty">No finished batches yet. Add a buy batch with its dried copra kg to see bid prices.</div>`;
+ const exNote=b.excluded?`<div class="note" id="bidexcluded">⏸ ${K.pending.map(p=>bl(p)+' '+esc(p.source)).join(', ')} not used in yield / bid / projections until its unassigned copra sale is assigned (Records → edit the sale).</div>`:'';
+ if(!b.hasData)return exNote+`<div class="note" id="bidempty">No finished batches yet. Add a buy batch with its dried copra kg to see bid prices.</div>`;
  return `<div class="g3"><div class="box good"><div class="t">✅ GOOD BID</div><div class="p">${P(b.good)}</div><div class="d">Pay this or lower. Good bid = break-even minus ${P(b.margin)} margin (change in Settings).</div></div>
  <div class="box be"><div class="t">⚖️ BREAK-EVEN${b.gasOnly?' (gas costs only)':''}</div><div class="p">${P(b.be)}</div><div class="d">Zero profit for both partners, copra only. Rounded down.${b.gasOnly?' <b>Real break-even is lower once other costs are logged.</b>':''}</div></div>
  <div class="box loss"><div class="t">❌ LOSS</div><div class="p">above ${P(b.be)}</div><div class="d">Any bid higher = lugi.</div></div></div>
  ${small?'':`<p class="sub" style="margin-top:8px"><b>How:</b> Yield <b>${pc(b.yield)}</b> × Copra price <b>${P(b.sell)}</b>/kg (from Settings) − Expenses <b>${P(b.expPerKg)}</b>/kg raw${b.gasOnly?' (gas only — labor, sacks, meals not logged yet)':''} = <b>${P(b.be)}</b>.</p>`}
- <div class="note">🔥 Uling income is a <b>bonus cushion</b>, not counted. Unsold stock does not change the bid (it uses yield).</div>`}
+ ${exNote}<div class="note">🔥 Uling income is a <b>bonus cushion</b>, not counted. Unsold stock does not change the bid (it uses yield).</div>`}
 
 function render(){
  const s=S(),t=K.time,c=K.char;
@@ -86,7 +87,8 @@ function renderForm(){const e=editing||{},s=S();let h='';
   h=`<h2>${e.id?'Edit':'New'} buy batch (Bili)</h2>${fld('f_date','Date',e.date||iso(),'date')}${fld('f_src','Source / farmer',e.source||'','text')}
   <div class="row"><div>${fld('f_raw','Raw coconut kg',e.rawKg||'')}</div><div>${fld('f_buy','Buy price ₱/kg',e.rawKg?(e.buyTotal/e.rawKg).toFixed(4):'')}</div></div>
   <div class="row"><div>${fld('f_as','Asarez price ₱/kg',e.asarez||'')}</div><div>${fld('f_gas','Gas ₱',gas?gas.amount:'')}</div></div>
-  ${fld('f_copra','Dried copra kg — leave blank while drying; when entered, batch becomes "Not yet sold"',e.copraKg||'')}<div class="auto" id="f_auto"></div>`}
+  ${fld('f_copra','Dried copra kg — leave blank while drying; when entered, batch becomes "Not yet sold"',e.copraKg||'')}
+  <div class="note" id="f_rawfix" style="display:none;background:#fff3d6"><b>Check raw kg.</b> Copra is now below what was already sold for this batch, so the old row probably combined two loads. Enter the corrected raw kg for <b>this</b> batch above.<label style="display:flex;gap:8px;align-items:center;color:var(--t)"><input type="checkbox" id="f_rawok" style="width:auto"> Raw kg is already correct</label></div><div class="auto" id="f_auto"></div>`}
  if(form==='sale'){h=`<h2>${e.id?'Edit sale':'Mark copra as sold'} (Benta)</h2><label>Batch</label><select id="f_batch">${e.id&&!K.rows.some(r=>r.id===e.batch_id)?'<option value="">— not assigned to a batch —</option>':''}${batchOpts(e.batch_id||preBatch,true)}</select>
   <label>Copra sold?</label><div class="seg" id="f_st"><button data-s="all" class="on">All sold</button><button data-s="part">Part sold</button><button data-s="none">Not yet</button></div>
   <div class="row"><div>${fld('f_kg','Kg sold',e.kg||'')}</div><div>${fld('f_price','Price ₱/kg',e.price||s.copraPrice)}</div></div>${fld('f_date','Date',e.date||iso(),'date')}${fld('f_buyer','Buyer / mill',e.buyer||'','text')}<div class="auto" id="f_auto"></div>`}
@@ -120,6 +122,9 @@ async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved �
  const chk=(kind,rec,ctx)=>{const m=Calc.validate(kind,rec,ctx);return m?fail(m):true};
  if(form==='buy'){const rec={date:v('#f_date')||null,rawKg:numv('#f_raw'),buyPrice:numv('#f_buy'),asarez:numv('#f_as'),gas:numv('#f_gas'),copraKg:numv('#f_copra')??0,
    };if(!chk('buy',rec))return;
+  if(e.id){const cur=K.rows.find(r=>r.id===e.id),soldNow=cur?cur.soldKg:0;
+   if(rec.copraKg<soldNow-1e-9&&Math.abs(rec.rawKg-e.rawKg)<1e-9&&!$('#f_rawok').checked){$('#f_rawfix').style.display='block';
+    return fail(`Copra ${N(rec.copraKg,1)} kg is below the ${N(soldNow,1)} kg already sold. Enter the corrected raw kg for this batch (or tick "Raw kg is already correct").`)}}
   const no=e.no||Math.max(0,...live('batches').map(b=>b.no))+1;
   const b=await store.save('batches',{...e,no,dev:e.id?e.dev:DEV,date:rec.date,source:v('#f_src')||'Batch '+no,rawKg:rec.rawKg,buyTotal:Math.round(rec.rawKg*rec.buyPrice*100)/100,asarez:rec.asarez,copraKg:rec.copraKg});
   const g=live('expenses').find(x=>x.batch_id===b.id&&x.category==='Gas');if(rec.gas||g)await store.save('expenses',{...(g||{}),batch_id:b.id,date:rec.date,category:'Gas',amount:rec.gas||0,note:''});msg='Batch '+bl(b)+' saved ✓';
@@ -127,7 +132,7 @@ async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved �
   // UNASSIGNED sale (same price) instead of blocking the edit or losing revenue. User re-assigns it in Records.
   if(e.id){let sold=live('sales').filter(x=>x.batch_id===b.id).sort((x,y)=>(y.date||'').localeCompare(x.date||'')),excess=live('sales').filter(x=>x.batch_id===b.id).reduce((t,x)=>t+x.kg,0)-rec.copraKg;
    for(const x of sold){if(excess<=1e-9)break;const cut=Math.min(x.kg,excess);excess-=cut;
-    if(cut>=x.kg-1e-9)await store.save('sales',{...x,batch_id:null});else{await store.save('sales',{...x,kg:Math.round((x.kg-cut)*1000)/1000});await store.save('sales',{batch_id:null,date:x.date,kg:Math.round(cut*1000)/1000,price:x.price,buyer:x.buyer||''})}
+    if(cut>=x.kg-1e-9)await store.save('sales',{...x,batch_id:null,from_batch:b.id});else{await store.save('sales',{...x,kg:Math.round((x.kg-cut)*1000)/1000});await store.save('sales',{batch_id:null,from_batch:b.id,date:x.date,kg:Math.round(cut*1000)/1000,price:x.price,buyer:x.buyer||''})}
     msg+=` · ${N(cut,1)} kg of its sale moved to "not assigned" — open Records to assign it`}}}
  if(form==='sale'){if(!$('#f_batch').value)return fail('Pick a batch for this sale');const st=$('#f_st .on').dataset.s;
   if(st==='none'&&!e.id){msg='Marked as not yet sold (stock) ✓'}else{
@@ -135,7 +140,7 @@ async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved �
    const rec={date:v('#f_date')||null,kg:numv('#f_kg'),price:numv('#f_price')};if(!chk('sale',rec,{onHand:avail}))return;
    await store.save('sales',{...e,batch_id:r.id,date:rec.date,kg:rec.kg,price:rec.price,buyer:v('#f_buyer')});msg='Sale saved ✓';const rr=Calc.compute(await store.snapshot(),today()).rows.find(x=>x.id===r.id);if(rr&&rr.status==='sold')msg+=' · batch '+bl(r)+' Complete'}}
  if(form==='char'){const rec={date:v('#f_date')||null,bagolKg:numv('#f_bagol'),ulingKg:numv('#f_uling')??0,status:v('#f_status')};if(!chk('char',rec))return;
-  const soldElse=K.char.ulingSoldKg,madeElse=K.char.uling-(e.id&&e.status!=='burning'?+e.ulingKg||0:0);if(rec.status==='done'&&madeElse+rec.ulingKg<soldElse-1e-9)return fail('Uling made would be less than uling already sold');
+  const pg=Calc.poolCheck(K,e.id?e:null,rec);if(pg)return fail(pg);
   const no=e.no||Math.max(0,...live('charcoal').map(b=>b.no))+1;const c=await store.save('charcoal',{...e,no,dev:e.id?e.dev:DEV,...rec});msg='Burn '+bl(c)+' saved ✓'}
  if(form==='usale'){const rec={date:v('#f_date')||null,kg:numv('#f_kg'),price:numv('#f_price')};if(!chk('usale',rec,{onHand:K.char.ulingOnHand+(e.id?+e.kg:0)}))return;
   await store.save('uling_sales',{...e,...rec,buyer:v('#f_buyer')});msg='Uling sale saved ✓'}
@@ -159,7 +164,9 @@ let preBatch=null;
 document.addEventListener('click',async ev=>{const ed=ev.target.dataset?.ed,del=ev.target.dataset?.del,sell=ev.target.dataset?.sell;
  if(sell){editing=null;form='sale';preBatch=sell;show('add');$('#aftersave').innerHTML='';renderForm();preBatch=null;window.scrollTo(0,0);return}
  if(ed){const[t,id]=ed.split('|');editing=D[t].find(x=>x.id===id);form={batches:'buy',sales:'sale',charcoal:'char',expenses:'exp',uling_sales:'usale'}[t];show('add');renderForm();window.scrollTo(0,0)}
- if(del){const[t,id]=del.split('|');if(!(window.__AUTOCONFIRM__||confirm('Delete this entry?')))return;await store.remove(t,id);if(t==='batches')for(const x of live('sales').concat(live('expenses')).filter(x=>x.batch_id===id))await store.remove(D.sales.includes(x)?'sales':'expenses',x.id);await load();toast('Deleted');sched()}});
+ if(del){const[t,id]=del.split('|');
+  if(t==='charcoal'){const m=Calc.poolCheck(K,D.charcoal.find(x=>x.id===id),null);if(m){toast('⚠️ '+m);const r=$('#v-rec .card');if(r)r.insertAdjacentHTML('afterbegin',`<div class="note" id="delerr" style="background:#f8dcd5;border-color:#b5462f">⚠️ ${esc(m)}</div>`);return}}
+  if(!(window.__AUTOCONFIRM__||confirm('Delete this entry?')))return;await store.remove(t,id);if(t==='batches')for(const x of live('sales').concat(live('expenses')).filter(x=>x.batch_id===id))await store.remove(D.sales.includes(x)?'sales':'expenses',x.id);await load();toast('Deleted');sched()}});
 // ---------- backup / settings / sync ----------
 const cfg=()=>JSON.parse(localStorage.getItem('kopra_sync')||'{}');
 function renderMore(){const s=S(),c=cfg();

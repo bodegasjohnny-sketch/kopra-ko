@@ -51,4 +51,5 @@ ok "v1.3 uling_sales insert by member" "$(AS $J "insert into uling_sales(id,team
 ok "v1.3 uling_sales outsider blocked (RLS)" "$(AS $E "select count(*) from uling_sales")" "0"
 ok "v1.3 uling_sales price cap" "$(AE $J "insert into uling_sales(id,team_id,kg,price) values (gen_random_uuid(),'$T',1,500)" | grep -c 'check constraint')" "1"
 ok "v1.3 uling_sales gets server seq" "$(Q -c "select count(*) from uling_sales where seq is not null")" "1"
+ok "v1.3.1 sales.from_batch stored for unassigned sale" "$(AS $J "insert into sales(id,team_id,batch_id,from_batch,kg,price) values (gen_random_uuid(),'$T',null,gen_random_uuid(),6,44) returning (from_batch is not null)")" "t"
 echo "SQL: $pass passed, $fail failed";[ $fail -eq 0 ]
