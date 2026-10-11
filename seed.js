@@ -1,4 +1,4 @@
-// Seed: 10 copra batches (data.csv) + 7 uling burns (FULL_REPORT.md). Stable UUIDs so both phones seed identically.
+// Seed: 10 copra batches (data.csv) + uling pool: 7 burns and 6 uling sales (FULL_REPORT.md). IDs are re-randomised per install.
 const SEED={
  "settings": [
   {
@@ -391,7 +391,7 @@ const SEED={
    "bagolKg": 300,
    "ulingKg": 98,
    "price": 31,
-   "status": "sold",
+   "status": "done",
    "buyer": "Manapa",
    "updated_at": "2026-10-11T00:00:00.000Z",
    "deleted": false,
@@ -403,7 +403,7 @@ const SEED={
    "bagolKg": 300,
    "ulingKg": 90,
    "price": 31,
-   "status": "sold",
+   "status": "done",
    "buyer": "Manapa",
    "updated_at": "2026-10-11T00:00:00.000Z",
    "deleted": false,
@@ -415,7 +415,7 @@ const SEED={
    "bagolKg": 300,
    "ulingKg": 101,
    "price": 31,
-   "status": "sold",
+   "status": "done",
    "buyer": "Manapa",
    "updated_at": "2026-10-11T00:00:00.000Z",
    "deleted": false,
@@ -427,7 +427,7 @@ const SEED={
    "bagolKg": 300,
    "ulingKg": 83,
    "price": 31,
-   "status": "sold",
+   "status": "done",
    "buyer": "Manapa",
    "updated_at": "2026-10-11T00:00:00.000Z",
    "deleted": false,
@@ -439,7 +439,7 @@ const SEED={
    "bagolKg": 300,
    "ulingKg": 105,
    "price": 31,
-   "status": "sold",
+   "status": "done",
    "buyer": "Manapa",
    "updated_at": "2026-10-11T00:00:00.000Z",
    "deleted": false,
@@ -451,7 +451,7 @@ const SEED={
    "bagolKg": 378,
    "ulingKg": 126,
    "price": 31,
-   "status": "sold",
+   "status": "done",
    "buyer": "Manapa",
    "updated_at": "2026-10-11T00:00:00.000Z",
    "deleted": false,
@@ -465,6 +465,74 @@ const SEED={
    "price": 31,
    "status": "burning",
    "buyer": "",
+   "updated_at": "2026-10-11T00:00:00.000Z",
+   "deleted": false,
+   "synced": false
+  }
+ ],
+ "uling_sales": [
+  {
+   "id": "a273c91c-8371-5d4e-8529-bde31abce1cd",
+   "date": null,
+   "kg": 98,
+   "price": 31,
+   "buyer": "Manapa",
+   "from_burn": "f16ef034-9936-5dc5-a19b-6c2063b2b767",
+   "updated_at": "2026-10-11T00:00:00.000Z",
+   "deleted": false,
+   "synced": false
+  },
+  {
+   "id": "dd4ca074-9d5c-5f96-a1a2-85a4bb3625a9",
+   "date": null,
+   "kg": 90,
+   "price": 31,
+   "buyer": "Manapa",
+   "from_burn": "675f7239-7f94-594a-aa8a-e146c8c9f71b",
+   "updated_at": "2026-10-11T00:00:00.000Z",
+   "deleted": false,
+   "synced": false
+  },
+  {
+   "id": "b27afe5b-e349-5efb-b3b9-b8de3bb08509",
+   "date": null,
+   "kg": 101,
+   "price": 31,
+   "buyer": "Manapa",
+   "from_burn": "ea01a0da-71b0-5514-aba1-7b111efad15e",
+   "updated_at": "2026-10-11T00:00:00.000Z",
+   "deleted": false,
+   "synced": false
+  },
+  {
+   "id": "881c4963-c654-54d1-9c95-116f71e6e67e",
+   "date": null,
+   "kg": 83,
+   "price": 31,
+   "buyer": "Manapa",
+   "from_burn": "1df1bac4-39d2-5112-bc3b-53acee51633a",
+   "updated_at": "2026-10-11T00:00:00.000Z",
+   "deleted": false,
+   "synced": false
+  },
+  {
+   "id": "3a4774d0-ccd1-54f4-b2b3-259feb10a37d",
+   "date": null,
+   "kg": 105,
+   "price": 31,
+   "buyer": "Manapa",
+   "from_burn": "8f21a053-bbaa-5123-a093-36de3efc0095",
+   "updated_at": "2026-10-11T00:00:00.000Z",
+   "deleted": false,
+   "synced": false
+  },
+  {
+   "id": "9efb6149-0bd9-54eb-9e9e-cc76e12b192a",
+   "date": null,
+   "kg": 126,
+   "price": 31,
+   "buyer": "Manapa",
+   "from_burn": "0f4c4b9a-a438-5134-ae68-4b9df6a8cf0a",
    "updated_at": "2026-10-11T00:00:00.000Z",
    "deleted": false,
    "synced": false

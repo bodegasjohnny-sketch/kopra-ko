@@ -2,6 +2,8 @@ import sys,json
 from playwright.sync_api import sync_playwright
 R=[];ok=lambda n,c,d='':(R.append((n,bool(c),d)),print(('PASS' if c else 'FAIL'),n,d))
 U="http://127.0.0.1:8765/index.html"
+def save(pg):
+  pg.evaluate("document.querySelector('#aftersave').innerHTML=''");pg.click("#f_save");pg.wait_for_selector("#nextbid")
 with sync_playwright() as p:
   b=p.chromium.launch(executable_path="/usr/bin/google-chrome")
   ctx=b.new_context(viewport={"width":390,"height":844},device_scale_factor=2,is_mobile=True,has_touch=True)
@@ -12,7 +14,7 @@ with sync_playwright() as p:
   ok("seed raw 29,366 kg",abs(K['raw']-29366)<.01);ok("seed copra 6,893.8 kg",abs(K['copra']-6893.8)<.01);ok("copra net ₱36,856.66",abs(K['copraNet']-36856.66)<.01)
   bg=pg.inner_text("#bidguide");ok("FIX3 break-even rounded down ₱10.15","₱10.15" in bg and "₱10.16" not in bg);ok("FIX3 good bid ₱9.65","₱9.65" in bg)
   ok("FIX3 gas-only label","Real break-even is lower once other costs are logged" in bg and "gas costs only" in bg);ok("FIX3 margin label","Good bid = break-even minus ₱0.50 margin (change in Settings)" in bg)
-  ok("FIX3 uling shown as gross","Uling gross sales" in pg.inner_text("#charcoal") and "Copra net + uling gross" in pg.inner_text("#kpis"))
+  ok("FIX3 uling shown as gross","Uling revenue (gross)" in pg.inner_text("#charcoal") and "Copra net + uling gross" in pg.inner_text("#kpis"))
   ok("SF no §6b reference","§6b" not in pg.content())
   ok("combined ₱55,549.66 shown","₱55,549.66" in pg.inner_text("#kpis"));ok("duration 55 d","55 d" in pg.inner_text("#duration"))
   bb=pg.locator("#bidguide").bounding_box();ok("bid guide fits phone width",bb['width']<=390,str(bb))
@@ -38,14 +40,14 @@ with sync_playwright() as p:
   # add buy batch
   pg.fill("#f_src","Test farmer");pg.fill("#f_raw","2000");pg.fill("#f_buy","9.50");pg.fill("#f_as","10.5");pg.fill("#f_gas","200");pg.fill("#f_copra","480")
   pg.screenshot(path="screenshots/02-input-buy.png",full_page=True)
-  pg.click("#f_save");pg.wait_for_selector("#nextbid");K2=pg.evaluate("window.__K")
+  save(pg);K2=pg.evaluate("window.__K")
   ok("new batch raises raw to 31,366",abs(K2['raw']-31366)<.01);ok("copra on hand 480 (not sold yet)",abs(K2['onHand']-480)<.01)
   ok("unrealized = 480×44 − cost",abs(K2['unrealized']-(480*44-(19000+200)))<.01,str(K2['unrealized']))
   ok("bid guide recomputed",abs(K2['bid']['yield']-(6893.8+480)/31366)<1e-9 and "Next batch bid guide" in pg.inner_text("#nextbid"))
   pg.screenshot(path="screenshots/03-after-save-buy.png",full_page=True)
   # partial sale
   pg.click("#formseg button[data-f=sale]");pg.click("#f_st button[data-s=part]");pg.fill("#f_kg","300");pg.fill("#f_price","44")
-  pg.screenshot(path="screenshots/04-input-sale-part.png",full_page=True);pg.click("#f_save");pg.wait_for_selector("#nextbid");K3=pg.evaluate("window.__K")
+  pg.screenshot(path="screenshots/04-input-sale-part.png",full_page=True);save(pg);K3=pg.evaluate("window.__K")
   ok("part sale leaves 180 kg on hand",abs(K3['onHand']-180)<.01);ok("realized+unrealized=total",abs(K3['realized']+K3['unrealized']-K3['total'])<.01)
   pg.screenshot(path="screenshots/05-after-save-sale.png",full_page=True)
   pg.click("#f_st button[data-s=part]");pg.fill("#f_kg","500");pg.click("#f_save");ok("FIX1 oversell rejected with message","only 180 kg on hand" in pg.inner_text("#f_err") and pg.locator("#nextbid").count()==0 and abs(pg.evaluate("window.__K.onHand")-180)<.01)
@@ -55,21 +57,63 @@ with sync_playwright() as p:
   be0=pg.evaluate("window.__K.bid.sell")
   pg.evaluate("""(async()=>{const b=D.batches.find(x=>x.no===1&&!x.deleted);await store.save('batches',{...b,copraKg:b.copraKg+10});await load()})()""");pg.wait_for_timeout(300)
   pg.click("#formseg button[data-f=sale]");opt=pg.evaluate("[...document.querySelectorAll('#f_batch option')].find(o=>o.textContent.startsWith('#1 ')).value");pg.select_option("#f_batch",opt)
-  pg.click("#f_st button[data-s=part]");pg.fill("#f_kg","10");pg.fill("#f_price","60");pg.click("#f_save");pg.wait_for_selector("#nextbid")
+  pg.click("#f_st button[data-s=part]");pg.fill("#f_kg","10");pg.fill("#f_price","60");save(pg)
   ok("FIX2 ₱60 old-batch sale keeps copra price ₱44",be0==44 and pg.evaluate("window.__K.bid.sell")==44)
   ok("FIX2 settings price unchanged",pg.evaluate("S().copraPrice")==44)
   # charcoal + expense
-  pg.click("#formseg button[data-f=char]");pg.fill("#f_bagol","300");pg.fill("#f_uling","96");pg.select_option("#f_status","sold");pg.screenshot(path="screenshots/06-input-uling.png",full_page=True);pg.click("#f_save");pg.wait_for_selector("#nextbid")
+  pg.click("#formseg button[data-f=char]");pg.fill("#f_bagol","300");pg.fill("#f_uling","96");pg.select_option("#f_status","done");pg.screenshot(path="screenshots/06-input-uling.png",full_page=True);save(pg)
+  ok("v1.3 burn adds 96 kg to uling pool",abs(pg.evaluate("window.__K.char.ulingOnHand")-96)<.01)
+  pg.click("#formseg button[data-f=usale]");pg.fill("#f_kg","200");pg.fill("#f_price","31");pg.click("#f_save");ok("v1.3 uling oversell from pool rejected","only 96 kg in the pool" in pg.inner_text("#f_err"))
+  pg.fill("#f_kg","96");pg.screenshot(path="screenshots/21-input-uling-sale-pool.png",full_page=True);save(pg)
   ok("uling burn adds ₱2,976",abs(pg.evaluate("window.__K.char.ulingSales")-(18693+96*31))<.01)
-  pg.click("#formseg button[data-f=exp]");pg.select_option("#f_cat","Merienda / meals");pg.fill("#f_amt","150");pg.screenshot(path="screenshots/07-input-expense.png",full_page=True);pg.click("#f_save");pg.wait_for_selector("#nextbid")
+  pg.click("#formseg button[data-f=exp]");pg.select_option("#f_cat","Merienda / meals");pg.fill("#f_amt","150");pg.screenshot(path="screenshots/07-input-expense.png",full_page=True);save(pg)
   ok("merienda tracked",abs(pg.evaluate("window.__K.meri.spent")-150)<.01)
+  # ===== v1.3 flows =====
+  # still drying batch + live projection in form
+  pg.click("#formseg button[data-f=buy]");pg.fill("#f_src","Drying test");pg.fill("#f_raw","3000");pg.fill("#f_buy","9.5");pg.fill("#f_gas","300")
+  ok("v1.3 projection shown live in buy form (copra blank)","Projection" in pg.inner_text("#f_auto") and "profit after bills" in pg.inner_text("#f_auto"))
+  pg.screenshot(path="screenshots/22-projection-form.png",full_page=True);save(pg)
+  K5=pg.evaluate("window.__K");dr=[r for r in K5['rows'] if r['source']=='Drying test'][0]
+  ok("v1.3 drying batch status 'Still drying'",dr['statusLabel']=='Still drying' and K5['dry']['n']==1)
+  ok("v1.3 drying batch does not move bid guide",abs(K5['bid']['beRaw']-pg.evaluate("Calc.compute({...D,batches:D.batches.filter(b=>b.source!=='Drying test')},today()).bid.beRaw"))<1e-9)
+  p0=K5['dry']['profit']
+  pg.click("#formseg button[data-f=exp]");pg.select_option("#f_cat","Labor");pg.fill("#f_amt","500");pg.select_option("#f_batch",dr['id']);save(pg)
+  ok("v1.3 bill linked to drying batch lowers projected profit by ₱500",abs(pg.evaluate("window.__K.dry.profit")-(p0-500))<.01)
+  pg.click("nav button[data-v=home]");pg.wait_for_timeout(300);ok("v1.3 Still drying card shows projection","Projected copra" in pg.inner_text("#drying") and "Drying test" in pg.inner_text("#drying"))
+  pg.locator("#drying").screenshot(path="screenshots/23-still-drying-card.png")
+  # actual copra entered -> Not yet sold, variance shown
+  pg.click("nav button[data-v=rec]");pg.locator("button[data-ed='batches|"+dr['id']+"']").click();pg.fill("#f_copra","700")
+  ok("v1.3 projected vs actual variance shown in form","Actual copra 700" in pg.inner_text("#f_auto"));save(pg)
+  r=[x for x in pg.evaluate("window.__K.rows") if x['id']==dr['id']][0];ok("v1.3 status 'Not yet sold', not counted as sold",r['statusLabel']=='Not yet sold' and r['soldKg']==0 and r['proj']['variancePct'] is not None,str({k:r.get(k) for k in ['statusLabel','soldKg','copraKg']})+pg.inner_text("#aftersave")[:80]+pg.inner_text("#f_err") if pg.locator("#f_err").count() else '')
+  pg.click("nav button[data-v=home]");pg.wait_for_timeout(300);pg.locator("#stock").screenshot(path="screenshots/24-unsold-batch-card.png")
+  # mark as sold (partial @ ₱47 then rest) -> Complete
+  pg.locator("#stock button[data-sell='"+dr['id']+"']").click();pg.click("#f_st button[data-s=part]");pg.fill("#f_kg","400");pg.fill("#f_price","47")
+  pg.screenshot(path="screenshots/25-mark-as-sold.png",full_page=True);save(pg)
+  r=[x for x in pg.evaluate("window.__K.rows") if x['id']==dr['id']][0];ok("v1.3 part sold @ ₱47: realized uses ₱47",r['statusLabel']=='Part sold' and abs(r['avgSalePrice']-47)<1e-9 and pg.evaluate("S().copraPrice")==44)
+  pg.click("nav button[data-v=home]");pg.locator("#stock button[data-sell='"+dr['id']+"']").click();pg.click("#f_st button[data-s=all]");pg.fill("#f_price","47");save(pg)
+  ok("v1.3 all sold -> Complete","Complete" in pg.inner_text("#nextbid"))
+  pg.click("nav button[data-v=rec]");pg.locator("button[data-del='batches|"+dr['id']+"']").click();pg.wait_for_timeout(300)
+  # Hayag edit (bug): batch #10 -> 3143.5 kg, ₱9.77, Asarez 10.5, gas 400, copra 723
+  pg.click("nav button[data-v=rec]");b10=pg.evaluate("D.batches.find(b=>b.no===10&&!b.deleted).id");pg.locator("button[data-ed='batches|"+b10+"']").click()
+  pg.fill("#f_raw","3143.5");pg.fill("#f_buy","9.77");pg.fill("#f_as","10.5");pg.fill("#f_gas","400");pg.fill("#f_copra","723");save(pg)
+  K6=pg.evaluate("window.__K");r10=[x for x in K6['rows'] if x['no']==10][0]
+  ok("v1.3 FIX1 Hayag edit saves (no 'less than already sold' block)",r10['copraKg']==723 and r10['rawKg']==3143.5 and "not assigned" in pg.inner_text("#nextbid"),str({k:r10.get(k) for k in ['copraKg','rawKg','soldKg']})+pg.inner_text("#nextbid")[:120])
+  ok("v1.3 FIX1 excess 606 kg sale kept as unassigned (revenue not lost)",abs(K6['unassigned']['kg']-606)<.01 and abs(r10['soldKg']-723)<.01)
+  pg.screenshot(path="screenshots/26-hayag-edit-fixed.png",full_page=True)
+  pg.click("nav button[data-v=home]");pg.wait_for_timeout(300);ok("v1.3 unassigned-sale warning shown",pg.locator("#unassigned").count()==1)
+  pg.wait_for_selector("#toast",state="hidden");pg.locator("#charcoal").screenshot(path="screenshots/27-uling-pool.png")
+  ok("v1.3 uling pool card","Uling on hand" in pg.inner_text("#charcoal") and "Bagol not yet burned" in pg.inner_text("#charcoal"))
+  # restore original batch 10 for later assertions: delete edited data via reset? keep raw consistent: re-edit to original values
+  pg.click("nav button[data-v=rec]");pg.locator("button[data-ed='batches|"+b10+"']").click();pg.fill("#f_raw","5780");pg.fill("#f_buy","10");pg.fill("#f_copra","1329");save(pg)
+  un=pg.evaluate("D.sales.find(s=>!s.deleted&&!s.batch_id).id");pg.click("nav button[data-v=rec]");pg.locator("button[data-ed='sales|"+un+"']").click();pg.select_option("#f_batch",b10);pg.click("#f_st button[data-s=part]");pg.fill("#f_kg","606");save(pg)
+  ok("v1.3 unassigned sale re-assigned to batch -> Complete again",pg.evaluate("window.__K.unassigned.kg")==0 and [x for x in pg.evaluate("window.__K.rows") if x['no']==10][0]['statusLabel']=='Complete')
   # persistence across reload (IndexedDB)
   pg.reload();pg.wait_for_function("window.__K");ok("data persists after reload",abs(pg.evaluate("window.__K.raw")-31366)<.01)
   pg.click("nav button[data-v=home]");pg.wait_for_timeout(400);pg.locator("#stock").screenshot(path="screenshots/08-stock-card-mobile.png");pg.screenshot(path="screenshots/09-dashboard-after-updates.png",full_page=True)
   # edit + delete
   pg.click("nav button[data-v=rec]");pg.screenshot(path="screenshots/10-records.png",full_page=True)
   rec=pg.inner_text("#v-rec");ok("A cosmetic: no device tag when sync off","#11 Test farmer" in rec and "#11-" not in rec)
-  pg.locator("button[data-ed^='batches|']").first.click();pg.fill("#f_raw","2100");pg.click("#f_save");pg.wait_for_selector("#nextbid");ok("edit batch updates raw",abs(pg.evaluate("window.__K.raw")-31466)<.01)
+  pg.locator("button[data-ed^='batches|']").first.click();pg.fill("#f_raw","2100");save(pg);ok("edit batch updates raw",abs(pg.evaluate("window.__K.raw")-31466)<.01)
   pg.click("nav button[data-v=rec]");pg.locator("button[data-del^='batches|']").first.click();pg.wait_for_timeout(400);K4=pg.evaluate("window.__K")
   ok("delete batch restores seed raw",abs(K4['raw']-29366)<.01);ok("delete cascades its sale/gas",abs(K4['copraNet']-(36856.66-150+600))<.01,str(K4['copraNet']))
   # export / import
@@ -85,7 +129,7 @@ with sync_playwright() as p:
   badf=copy.deepcopy(data);badf["charcoal"][0]["status"]="<img src=x onerror=window.__X2=1>";bp=tempfile.mktemp(suffix=".json");json.dump(badf,open(bp,"w"))
   before=pg.evaluate("window.__K.raw");pg.set_input_files("#bi",bp);pg.wait_for_timeout(500)
   ok("A2 bad backup rejected with reason, data unchanged","Backup rejected" in pg.inner_text("#bierr") and "status" in pg.inner_text("#bierr") and pg.evaluate("window.__K.raw")==before and not pg.evaluate("window.__X2"))
-  badf=copy.deepcopy(data);badf["batches"][0]["rawKg"]=-100;json.dump(badf,open(bp,"w"));pg.set_input_files("#bi",bp);pg.wait_for_timeout(400)
+  badf=copy.deepcopy(data);badf["batches"][0]["rawKg"]=-100;json.dump(badf,open(bp,"w"));pg.set_input_files("#bi",bp);pg.wait_for_function("document.querySelector('#bierr').textContent.includes('Raw kg')",timeout=5000)
   ok("A2 negative kg backup rejected","Raw kg" in pg.inner_text("#bierr") and pg.evaluate("window.__K.raw")==before)
   pg.screenshot(path="screenshots/18-backup-rejected.png",full_page=True)
   ok("SF sync card hidden by default",pg.locator("#synccard").count()==0)
@@ -101,7 +145,19 @@ with sync_playwright() as p:
   ctx.set_offline(True);pg.reload();pg.wait_for_function("window.__K");ok("works offline (SW cache)",pg.evaluate("Object.keys(Chart.instances).length")>=4);ctx.set_offline(False)
   ok("no JS errors",not errs,"; ".join(errs[:3]))
   f=b.new_page(viewport={"width":390,"height":844});f.goto(U+"?sync=1");f.wait_for_function("window.__K");f.click("nav button[data-v=more]");ok("SF sync card shown only with flag",f.locator("#synccard").count()==1)
-  ok("SF version shown v1.2.0","v1.2.0" in f.inner_text("#v-more"))
+  ok("version shown v1.3.0","v1.3.0" in f.inner_text("#v-more"))
+  # v1.2 -> v1.3 IndexedDB migration on a phone with existing data
+  m=b.new_context(viewport={"width":390,"height":844});mp=m.new_page();mp.goto(U.replace("index.html","manifest.webmanifest"))
+  mp.evaluate("""async()=>{const src=await (await fetch('seed.js')).text();const SEED=new Function(src+';return SEED')();
+    const db=await new Promise((res,rej)=>{const q=indexedDB.open('kopra',1);q.onupgradeneeded=()=>['settings','batches','sales','expenses','charcoal','meta'].forEach(t=>q.result.createObjectStore(t,{keyPath:'id'}));q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});
+    const put=(t,rs)=>new Promise(r=>{const x=db.transaction(t,'readwrite');rs.forEach(v=>x.objectStore(t).put(v));x.oncomplete=r});
+    const ch=SEED.charcoal.map(c=>c.ulingKg>0?{...c,status:'sold',price:31}:c); // v1.2 style
+    await put('settings',SEED.settings);await put('batches',SEED.batches.concat([{id:'my-own-batch',no:11,source:'Phone data v1.2',rawKg:1234,buyTotal:11106,copraKg:0,updated_at:'2026-10-11T01:00:00Z',deleted:false,synced:false}]));
+    await put('sales',SEED.sales);await put('expenses',SEED.expenses);await put('charcoal',ch);await put('meta',[{id:'seeded',at:'x'},{id:'device',v:'AB'}]);db.close()}""")
+  mp.goto(U);mp.wait_for_function("window.__K");KM=mp.evaluate("window.__K")
+  ok("v1.3 MIGRATION: v1.2 IndexedDB upgraded, 6 sold burns -> pool sales",mp.evaluate("window.__migrated")==6 and abs(KM['char']['ulingSales']-18693)<.01)
+  ok("v1.3 MIGRATION: no data lost (phone's own batch kept, totals intact)",any(r['source']=='Phone data v1.2' for r in KM['rows']) and abs(KM['raw']-(29366+1234))<.01 and abs(KM['copraNet']-(36856.66-11106))<.01)
+  mp.reload();mp.wait_for_function("window.__K");ok("v1.3 MIGRATION idempotent on reload",mp.evaluate("window.__migrated")==0 and mp.evaluate("D.uling_sales.length")==6);m.close()
   # desktop
   d=b.new_page(viewport={"width":1366,"height":900});d.add_init_script("window.__TODAY__='2026-10-11T12:00:00'");d.goto(U);d.wait_for_function("window.__K");d.wait_for_timeout(600);d.screenshot(path="screenshots/12-dashboard-desktop.png",full_page=True)
   b.close()

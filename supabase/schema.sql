@@ -1,4 +1,4 @@
--- Kopra Ko v1.2 — Supabase schema + RLS. Idempotent: safe to re-run.
+-- Kopra Ko v1.3 — Supabase schema + RLS. Idempotent: safe to re-run.
 -- Ordering is 100% server-side: seq (monotonic bigint) + updated_at = now(). Client clocks are never trusted.
 create extension if not exists pgcrypto;
 
@@ -50,8 +50,14 @@ create table if not exists charcoal (id uuid primary key, team_id uuid not null 
   no int check (no between 1 and 1000000), dev text check (dev ~ '^[A-Z0-9]{1,4}$'), date date, "bagolKg" numeric check ("bagolKg" > 0 and "bagolKg" <= 100000),
   "ulingKg" numeric check ("ulingKg" >= 0 and "ulingKg" <= "bagolKg"), price numeric check (price > 0 and price <= 200), status text check (status in ('burning','done','sold')), buyer text check (length(buyer) <= 120));
 
+-- v1.3: uling is one combined pool; sales are logged against the pool, not a burn. (charcoal.status 'sold' kept only for legacy rows)
+create table if not exists uling_sales (id uuid primary key, team_id uuid not null references teams(id),
+  date date, kg numeric not null check (kg > 0 and kg <= 100000), price numeric not null check (price > 0 and price <= 200),
+  buyer text check (length(buyer) <= 120), from_burn uuid);
+alter table charcoal alter column price drop not null;
+
 do $$ declare t text; begin
-  foreach t in array array['settings','batches','sales','expenses','charcoal'] loop
+  foreach t in array array['settings','batches','sales','expenses','charcoal','uling_sales'] loop
     execute format('alter table %1$I add column if not exists updated_at timestamptz not null default now(), add column if not exists deleted boolean not null default false,
       add column if not exists server_at timestamptz, add column if not exists seq bigint, add column if not exists base_seq bigint;',t);
     execute format('drop trigger if exists %1$s_server_at on %1$I; drop trigger if exists %1$s_stamp on %1$I;

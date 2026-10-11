@@ -47,4 +47,8 @@ ok "cap: rawKg 300,000 rejected by DB" "$(AE $J "insert into batches(id,team_id,
 ok "cap: sale price 500 rejected by DB" "$(AE $J "insert into sales(id,team_id,batch_id,kg,price) values (gen_random_uuid(),'$T','$ID2',1,500)" | grep -c 'check constraint')" "1"
 ok "authenticated cannot nextval the sequence" "$(AE $J "select nextval('public.kopra_seq')" | grep -c 'permission denied')" "1"
 ok "authenticated cannot write team_members" "$(AE $E "insert into team_members values ('$T','$E','owner',1)" | grep -c 'permission denied')" "1"
+ok "v1.3 uling_sales insert by member" "$(AS $J "insert into uling_sales(id,team_id,kg,price) values (gen_random_uuid(),'$T',100,31) returning kg")" "100"
+ok "v1.3 uling_sales outsider blocked (RLS)" "$(AS $E "select count(*) from uling_sales")" "0"
+ok "v1.3 uling_sales price cap" "$(AE $J "insert into uling_sales(id,team_id,kg,price) values (gen_random_uuid(),'$T',1,500)" | grep -c 'check constraint')" "1"
+ok "v1.3 uling_sales gets server seq" "$(Q -c "select count(*) from uling_sales where seq is not null")" "1"
 echo "SQL: $pass passed, $fail failed";[ $fail -eq 0 ]

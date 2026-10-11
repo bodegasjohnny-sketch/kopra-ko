@@ -1,4 +1,4 @@
-# Kopra Ko: offline copra + uling tracker (PWA) v1.2.0
+# Kopra Ko: offline copra + uling tracker (PWA) v1.3.0
 Run locally: `python3 -m http.server 8765` → http://127.0.0.1:8765 (the service worker needs http/https).
 Tests:
 - `node --test tests/` (calc, store, validation, sync against a mock that mirrors the DB trigger)
@@ -19,6 +19,17 @@ Tests:
 | Margin | ₱0–5; merienda cap ₱0–5 per kg |
 | Text fields | name/buyer 120 chars, note 200 chars |
 Backup import is checked strictly: types, required fields, negatives, caps, valid dates, unique IDs, batch references, and sold ≤ made. Unknown fields are dropped. A bad file is rejected and nothing changes.
+
+## v1.3 behaviour
+- **Copra lifecycle per batch:** Still drying (no copra kg) → Not yet sold (copra entered; not counted as sold, valued only as *unrealized* at the Settings price) → Part sold → Complete. Use "Mark as sold" to record kg + actual price; partial sales are allowed. Realized profit uses the actual sale price. The Settings copra price is never changed by a sale.
+- **Editing copra below the kg already sold** no longer blocks the edit. Example: sheet row 10 "hayag 9 oct" was 5,780 kg / 1,329 kg, but the real Hayag load is 3,143.5 / 723, so the row likely combined two loads. The extra sold kg moves to a "not assigned" sale at the same price, so no revenue is lost. A red card asks you to assign it to the right batch in Records. data.csv has no split, so none is invented.
+- **Uling is one pool:** estimated bagol (bagol % × all raw kg) → burns (in kiln / done) → uling on hand → pool sales (`uling_sales`). Burns are not tied to batches.
+- **Projections** for batches still drying:
+  - Yield = 70% raw-weighted yield of the last 5 finished batches + 30% lifetime yield. The low–high range uses the worst and best batch yields.
+  - Copra value uses the Settings price. Uling = raw × bagol % × pool uling yield × uling price.
+  - Projected profit = copra value − buy cost − every bill linked to the batch, so bills lower it as they are logged.
+  - Once actual copra is entered, the projection becomes a variance figure. Accuracy is back-tested: each finished batch is projected only from the batches before it, and the average miss % plus how many landed inside the range are shown on the dashboard.
+- **Migration from v1.2 phones:** IndexedDB goes to version 2 (this only adds the `uling_sales` store). A one-time data step turns each v1.2 burn marked "sold" into status "done" plus one pool sale with the same kg and price. Nothing is deleted, and the step is safe to run twice. Importing a v1.2 backup applies the same step.
 
 ## Releasing
 - Bump `APP_VERSION` in version.js on every release (semver). sw.js names its cache `kopra-<version>` and deletes old `kopra-*` caches.
