@@ -1,0 +1,17 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kopra Ko</title><meta name="theme-color" content="#1f4d3a"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><h1>🥥 Kopra Ko</h1><p id="hdr">Copra + uling trading · offline</p></header>
+<main>
+<section class="view on" id="v-home"></section>
+<section class="view" id="v-add">
+ <div class="seg" id="formseg"><button data-f="buy" class="on">🛒 Bili</button><button data-f="sale">💰 Benta</button><button data-f="char">🔥 Uling</button><button data-f="exp">🧾 Gastos</button></div>
+ <div class="card" id="formcard"></div><div id="aftersave"></div>
+</section>
+<section class="view" id="v-rec"></section>
+<section class="view" id="v-more"></section>
+</main>
+<nav><button data-v="home" class="on"><b>🏠</b>Home</button><button data-v="add"><b>➕</b>Add</button><button data-v="rec"><b>📒</b>Records</button><button data-v="more"><b>⚙️</b>Backup</button></nav>
+<div class="toast" id="toast"></div>
+<script src="lib/chart.umd.min.js"></script><script src="seed.js"></script><script src="version.js"></script><script src="db.js"></script><script src="sync.js"></script><script src="calc.js"></script><script src="app.js"></script>
+</body></html>
