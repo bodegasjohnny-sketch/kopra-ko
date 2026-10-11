@@ -85,6 +85,17 @@ function compute(db,today){
     time:{days,weeks,months,rawWk:raw/weeks,rawMo:raw/months,copraWk:copra/weeks,copraMo:copra/months,netWk:copraNet/weeks,netMo:copraNet/months,combMo:(copraNet+ulingNet)/months},
     byCat,budget,room,meri:{spent:meri,capPerKg:meriCap,capTotal:meriCap*raw,capBatch:raw&&rows.length?meriCap*raw/rows.length:0,perKg:raw?meri/raw:0}};
 }
+// Unassigned copra sales (split off when a batch's copra was cut below its sold kg) must each point (from_batch) to a real live
+// batch, and per batch lineage: assigned + unassigned kg <= copra the batch had when split (lineage_copra), never above its raw kg.
+// Shared by backup import AND the in-app save path so the app can never create a state its own importer rejects.
+function lineageErrors(o){const E=[],lv=t=>(Array.isArray(o[t])?o[t]:[]).filter(r=>r&&!r.deleted);const B=new Map(lv('batches').map(b=>[b.id,b]));
+  const L=new Map();for(const s of lv('sales')){if(s.batch_id!=null&&B.has(s.batch_id)){const x=L.get(s.batch_id)||{as:0,un:0,lc:0};x.as+=+s.kg||0;L.set(s.batch_id,x);continue}
+    if(s.batch_id!=null)continue; // missing batch reported elsewhere
+    if(typeof s.from_batch!=='string'||!B.has(s.from_batch)){E.push(`unassigned sale ${String(s.id).slice(0,8)} (${+s.kg||0} kg): must come from a real batch (from_batch)`);continue}
+    const x=L.get(s.from_batch)||{as:0,un:0,lc:0};x.un+=+s.kg||0;x.lc=Math.max(x.lc,+s.lineage_copra||0);L.set(s.from_batch,x)}
+  for(const[id,x]of L){if(!x.un)continue;const b=B.get(id),cap=Math.min(Math.max(+b.copraKg||0,x.lc),+b.rawKg||0);
+    if(x.as+x.un>cap+1e-6)E.push(`batch #${b.no}: sold ${Math.round((x.as+x.un)*10)/10} kg (incl. unassigned) but only ${Math.round(cap*10)/10} kg copra made`)}
+  return E}
 // Uling pool guard: would changing/deleting a burn make uling made < uling already sold? nb = new burn or null (delete).
 function poolCheck(K,ob,nb){const made=b=>b&&b.status!=='burning'&&!b.deleted?(+b.ulingKg||0):0;const after=K.char.uling-made(ob)+made(nb);
   return after<K.char.ulingSoldKg-1e-9?`Not allowed: uling made would drop to ${Math.round(after*10)/10} kg but ${Math.round(K.char.ulingSoldKg*10)/10} kg is already sold. Delete or reduce uling sales first.`:null}
@@ -139,11 +150,13 @@ function validateBackup(o){const E=[];const T=['settings','batches','sales','exp
   const B=new Map();live('batches').forEach((r,i)=>{if(!base('batches',r,i))return;const w=`batches[${i}]`;
     if(!Number.isInteger(r.no)||r.no<1||r.no>CAPS.batchNo)E.push(`${w}: bad batch number`);if(!STR(r.source,120))E.push(`${w}: bad source`);if(!STR(r.dev,4)||(r.dev&&!/^[A-Z0-9]{1,4}$/.test(r.dev)))E.push(`${w}: bad device tag`);
     if(!num(r.buyTotal)||r.buyTotal<=0)E.push(`${w}: bad buyTotal`);
-    chk(w,validate('buy',{rawKg:r.rawKg,buyPrice:num(r.buyTotal)&&num(r.rawKg)&&r.rawKg>0?r.buyTotal/r.rawKg:NaN,asarez:r.asarez,copraKg:r.copraKg??0}));B.set(r.id,{copra:r.copraKg||0,sold:0})});
+    chk(w,validate('buy',{rawKg:r.rawKg,buyPrice:num(r.buyTotal)&&num(r.rawKg)&&r.rawKg>0?r.buyTotal/r.rawKg:NaN,asarez:r.asarez,copraKg:r.copraKg??0}));B.set(r.id,{copra:r.copraKg||0,raw:r.rawKg,sold:0})});
   live('sales').forEach((r,i)=>{if(!base('sales',r,i))return;const w=`sales[${i}]`;if(!STR(r.buyer,120))E.push(`${w}: bad buyer`);
     if(r.from_batch!=null&&(typeof r.from_batch!=='string'||!UUIDISH.test(r.from_batch)))E.push(`${w}: bad from_batch`);
+    if(r.lineage_copra!=null&&(!num(r.lineage_copra)||r.lineage_copra<0||r.lineage_copra>CAPS.rawKg))E.push(`${w}: bad lineage_copra`);
     if(r.batch_id!=null&&!B.has(r.batch_id))E.push(`${w}: batch not found`);else if(r.batch_id!=null)B.get(r.batch_id).sold+=+r.kg||0;chk(w,validate('sale',{kg:r.kg,price:r.price}))});
   for(const[id,b]of B)if(b.sold>b.copra+1e-6)E.push(`batch ${id.slice(0,8)}: sold more copra than made`);
+  E.push(...lineageErrors(o));
   live('expenses').forEach((r,i)=>{if(!base('expenses',r,i))return;const w=`expenses[${i}]`;if(r.batch_id!=null&&!B.has(r.batch_id))E.push(`${w}: batch not found`);if(!STR(r.note,200))E.push(`${w}: bad note`);chk(w,validate('exp',{amount:r.amount,category:r.category}))});
   live('charcoal').forEach((r,i)=>{if(!base('charcoal',r,i))return;const w=`charcoal[${i}]`;if(!Number.isInteger(r.no)||r.no<1||r.no>CAPS.batchNo)E.push(`${w}: bad burn number`);
     if(!STR(r.dev,4)||(r.dev&&!/^[A-Z0-9]{1,4}$/.test(r.dev)))E.push(`${w}: bad device tag`);if(!STR(r.buyer,120))E.push(`${w}: bad buyer`);chk(w,validate('char',{bagolKg:r.bagolKg,ulingKg:r.ulingKg??0,price:r.price??null,status:r.status}))});
@@ -151,6 +164,6 @@ function validateBackup(o){const E=[];const T=['settings','batches','sales','exp
   (o.uling_sales?o.uling_sales.filter(r=>r&&r.deleted!==true):[]).forEach((r,i)=>{if(!base('uling_sales',r,i))return;const w=`uling_sales[${i}]`;if(!STR(r.buyer,120))E.push(`${w}: bad buyer`);sold+=+r.kg||0;chk(w,validate('usale',{kg:r.kg,price:r.price}))});
   if(sold>made+1e-6)E.push('Uling sold is more than uling made');
   return E.slice(0,20)}
-const api={compute,r2,validate,validateBackup,isDate,CAPS,projectNew,PROJ,STATUS,poolCheck};
+const api={lineageErrors,compute,r2,validate,validateBackup,isDate,CAPS,projectNew,PROJ,STATUS,poolCheck};
 if(typeof module!=='undefined')module.exports=api;else root.Calc=api;
 })(this);

@@ -2,6 +2,16 @@ import sys,json
 from playwright.sync_api import sync_playwright
 R=[];ok=lambda n,c,d='':(R.append((n,bool(c),d)),print(('PASS' if c else 'FAIL'),n,d))
 U="http://127.0.0.1:8765/index.html"
+import subprocess,os,time,urllib.request,atexit
+os.chdir(os.path.dirname(os.path.abspath(__file__))+"/..")
+def _up():
+  try:urllib.request.urlopen(U,timeout=2);return True
+  except Exception:return False
+if not _up():  # self-start the app server so the suite never depends on a leftover background process
+  _s=subprocess.Popen([sys.executable,"-m","http.server","8765","--bind","127.0.0.1"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);atexit.register(lambda:(_s.terminate(),_s.wait()))
+  for _ in range(50):
+    if _up():break
+    time.sleep(.1)
 def save(pg):
   pg.evaluate("document.querySelector('#aftersave').innerHTML=''");pg.click("#f_save");pg.wait_for_selector("#nextbid")
 with sync_playwright() as p:
@@ -106,6 +116,9 @@ with sync_playwright() as p:
   pg.screenshot(path="screenshots/26-hayag-edit-fixed.png",full_page=True)
   pg.click("nav button[data-v=home]");pg.wait_for_timeout(300);ok("v1.3 unassigned-sale warning shown",pg.locator("#unassigned").count()==1)
   ok("v1.3.1 BLOCKER3 bid guide shows exclusion note","not used in yield" in pg.inner_text("#v-home"));pg.locator("#bidexcluded").first.screenshot(path="screenshots/29-bid-excluded-note.png")
+  pg.click("nav button[data-v=rec]");pg.locator("button[data-ed='batches|"+b10+"']").click();pg.fill("#f_raw","1000");pg.click("#f_save");pg.wait_for_timeout(300)
+  ok("v1.3.2 SF1 in-app: raw cut below the batch lineage (723 + 606 unassigned) refused","copra made" in pg.inner_text("#f_err") and pg.evaluate("D.batches.find(b=>b.id==='"+b10+"').rawKg")==3143.5,pg.inner_text("#f_err"))
+  pg.click("nav button[data-v=home]");pg.wait_for_timeout(200)
   pg.wait_for_selector("#toast",state="hidden");pg.locator("#charcoal").screenshot(path="screenshots/27-uling-pool.png")
   ok("v1.3 uling pool card","Uling on hand" in pg.inner_text("#charcoal") and "Bagol not yet burned" in pg.inner_text("#charcoal"))
   # restore original batch 10 for later assertions: delete edited data via reset? keep raw consistent: re-edit to original values
@@ -141,9 +154,11 @@ with sync_playwright() as p:
   badf=copy.deepcopy(data);badf["charcoal"][0]["status"]="<img src=x onerror=window.__X2=1>";bp=tempfile.mktemp(suffix=".json");json.dump(badf,open(bp,"w"))
   before=pg.evaluate("window.__K.raw");pg.set_input_files("#bi",bp);pg.wait_for_timeout(500)
   ok("A2 bad backup rejected with reason, data unchanged","Backup rejected" in pg.inner_text("#bierr") and "status" in pg.inner_text("#bierr") and pg.evaluate("window.__K.raw")==before and not pg.evaluate("window.__X2"))
-  badf=copy.deepcopy(data);badf["batches"][0]["rawKg"]=-100;json.dump(badf,open(bp,"w"));pg.set_input_files("#bi",bp);pg.wait_for_function("document.querySelector('#bierr').textContent.includes('Raw kg')",timeout=5000)
+  badf=copy.deepcopy(data);next(x for x in badf["batches"] if not x.get("deleted"))["rawKg"]=-100;json.dump(badf,open(bp,"w"));pg.set_input_files("#bi",bp);pg.wait_for_function("document.querySelector('#bierr').textContent.includes('Raw kg')",timeout=5000)
   ok("A2 negative kg backup rejected","Raw kg" in pg.inner_text("#bierr") and pg.evaluate("window.__K.raw")==before)
   pg.screenshot(path="screenshots/18-backup-rejected.png",full_page=True)
+  sb=pg.evaluate("window.__K.sales");pg.evaluate("document.querySelector('#bierr').textContent=''");pg.set_input_files("#bi","tests/fixtures/bad-150k-unassigned.json");pg.wait_for_function("document.querySelector('#bierr').textContent.includes('real batch')",timeout=5000)
+  ok("v1.3.2 SF1 hand-made backup with 150,000 kg unassigned sale rejected in app, sales unchanged",pg.evaluate("window.__K.sales")==sb and pg.evaluate("window.__K.sales")<1e6)
   ok("SF sync card hidden by default",pg.locator("#synccard").count()==0)
   pg.fill("#s_cp","0");pg.click("#ss");ok("SF settings validation (price 0 rejected)","Copra price must be more than 0" in pg.inner_text("#s_err") and pg.evaluate("S().copraPrice")==44)
   pg.fill("#s_cp","44");pg.fill("#s_start","2027-01-01");pg.click("#ss");ok("SF settings: future start date rejected","future" in pg.inner_text("#s_err"))
@@ -157,7 +172,7 @@ with sync_playwright() as p:
   ctx.set_offline(True);pg.reload();pg.wait_for_function("window.__K");ok("works offline (SW cache)",pg.evaluate("Object.keys(Chart.instances).length")>=4);ctx.set_offline(False)
   ok("no JS errors",not errs,"; ".join(errs[:3]))
   f=b.new_page(viewport={"width":390,"height":844});f.goto(U+"?sync=1");f.wait_for_function("window.__K");f.click("nav button[data-v=more]");ok("SF sync card shown only with flag",f.locator("#synccard").count()==1)
-  ok("version shown v1.3.1","v1.3.1" in f.inner_text("#v-more"))
+  ok("version shown v1.3.2","v1.3.2" in f.inner_text("#v-more"))
   # v1.2 -> v1.3 IndexedDB migration on a phone with existing data
   m=b.new_context(viewport={"width":390,"height":844});mp=m.new_page();mp.goto(U.replace("index.html","manifest.webmanifest"))
   mp.evaluate("""async()=>{const src=await (await fetch('seed.js')).text();const SEED=new Function(src+';return SEED')();
@@ -183,11 +198,11 @@ with sync_playwright() as p:
     up.evaluate("(async()=>{const r=await store.save('batches',{no:11,source:'Phone batch before upgrade',rawKg:1000,buyTotal:9000,copraKg:0})})()");up.wait_for_timeout(300)
     os.remove(base+"/cur");os.symlink(base+"/new",base+"/cur")   # server now serves v1.3.1
     up.evaluate("navigator.serviceWorker.getRegistration().then(r=>r.update())")
-    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.3.1'",timeout=20000,polling=300)
+    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.3.2'",timeout=20000,polling=300)
     up.reload();up.wait_for_function("window.__K");KU=up.evaluate("window.__K")
-    ok("UPGRADE: SW updated, cache bumped to kopra-1.3.1 (old cache gone), page runs v1.3.1",up.evaluate("self.APP_VERSION")=="1.3.1" and up.evaluate("caches.keys()")==["kopra-1.3.1"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.3.1'\"))"))
+    ok("UPGRADE: SW updated, cache bumped to kopra-1.3.2 (old cache gone), page runs v1.3.2",up.evaluate("self.APP_VERSION")=="1.3.2" and up.evaluate("caches.keys()")==["kopra-1.3.2"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.3.2'\"))"))
     ok("UPGRADE: migration ran (6 sold burns -> pool sales), no data lost",up.evaluate("D.uling_sales.length")==6 and abs(KU['char']['ulingSales']-18693)<.01 and any(r['source']=='Phone batch before upgrade' for r in KU['rows']) and abs(KU['raw']-30366)<.01)
-    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.3.1 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.3.1");uc.close()
+    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.3.2 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.3.2");uc.close()
   finally:srv.terminate();srv.wait()
   # desktop
   d=b.new_page(viewport={"width":1366,"height":900});d.add_init_script("window.__TODAY__='2026-10-11T12:00:00'");d.goto(U);d.wait_for_function("window.__K");d.wait_for_timeout(600);d.screenshot(path="screenshots/12-dashboard-desktop.png",full_page=True)

@@ -1,4 +1,4 @@
-# Kopra Ko: offline copra + uling tracker (PWA) v1.3.1
+# Kopra Ko: offline copra + uling tracker (PWA) v1.3.2
 Run locally: `python3 -m http.server 8765` → http://127.0.0.1:8765 (the service worker needs http/https).
 Tests:
 - `node --test tests/` (calc, store, validation, sync against a mock that mirrors the DB trigger)
@@ -53,10 +53,16 @@ How ordering works (no phone clock is trusted):
 - Tokens refresh on 401, and errors appear in the sync card.
 
 ## v1.3.1 fixes
-- **Updates reach installed phones:** `sw.js` embeds `SW_VERSION` (must equal `APP_VERSION` in `version.js`; a unit test enforces it), so its bytes change every release. Pre-cache uses `cache:'reload'`. E2E test installs v1.2.0, serves v1.3.1, and checks the SW update, cache `kopra-1.3.1`, migration and offline use.
+- **Updates reach installed phones:** `sw.js` embeds `SW_VERSION` (must equal `APP_VERSION` in `version.js`; a unit test enforces it), so its bytes change every release. Pre-cache uses `cache:'reload'`. E2E test installs v1.2.0, serves v1.3.2, and checks the SW update, cache `kopra-1.3.1`, migration and offline use.
 - **Uling pool never goes negative:** deleting or editing a burn so that uling made < uling sold is refused with a message (delete or reduce uling sales first).
 - **Copra cut below sold kg:** the app asks for the corrected raw kg for that batch (or tick "Raw kg is already correct"). The split-off sale is kept as unassigned (`from_batch`), and that batch is **left out of yield / bid / projections** until the sale is assigned. The bid guide shows a note while this applies.
 - Backup import: unassigned sales get the same caps; `from_batch` is checked.
 - Migration writes the pool sale **before** changing the burn status (crash-safe, idempotent).
 - Projection low–high range ignores the single best and worst yield when there are 5+ batches.
 - DB: run `alter table sales add column if not exists from_batch uuid;` (in schema.sql) before turning sync on.
+
+## v1.3.2 fixes
+- **Unassigned copra sales are bound to a batch:** every unassigned sale must have a `from_batch` that points to a real, live batch, plus `lineage_copra` (the batch's copra kg when the sale was split off). For each batch, assigned + unassigned kg sold must be ≤ min(max(copra, lineage_copra), raw kg). The same rule (`Calc.lineageErrors`) is checked on **backup import** (the file is rejected) and **in the app** (an edit that breaks it is refused). Deleting a batch also deletes its unassigned sales.
+- Hand-made backups for these tests are in `tests/fixtures/` (e.g. a 150,000 kg unassigned sale that would have added ₱6.9M of copra sales; now rejected).
+- DB: `alter table sales add column if not exists lineage_copra numeric ...` (in schema.sql).
+- `tests/e2e.py` starts its own server on :8765 if none is running. The −100 kg import test now picks a live batch.

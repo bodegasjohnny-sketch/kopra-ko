@@ -125,6 +125,10 @@ async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved �
   if(e.id){const cur=K.rows.find(r=>r.id===e.id),soldNow=cur?cur.soldKg:0;
    if(rec.copraKg<soldNow-1e-9&&Math.abs(rec.rawKg-e.rawKg)<1e-9&&!$('#f_rawok').checked){$('#f_rawfix').style.display='block';
     return fail(`Copra ${N(rec.copraKg,1)} kg is below the ${N(soldNow,1)} kg already sold. Enter the corrected raw kg for this batch (or tick "Raw kg is already correct").`)}}
+  const prevUn=e.id?live('sales').filter(x=>!x.batch_id&&x.from_batch===e.id):[],lc=Math.max(+e.copraKg||0,...prevUn.map(x=>+x.lineage_copra||0));
+  if(e.id){const asg=live('sales').filter(x=>x.batch_id===e.id).reduce((t,x)=>t+x.kg,0),ex=Math.max(0,asg-rec.copraKg);
+   const sim={batches:live('batches').map(x=>x.id===e.id?{...x,rawKg:rec.rawKg,copraKg:rec.copraKg}:x),sales:live('sales').filter(x=>x.batch_id!==e.id).concat([{id:'sim-a',batch_id:e.id,kg:asg-ex},{id:'sim-u',batch_id:null,from_batch:e.id,lineage_copra:lc,kg:ex}].filter(x=>x.kg>0))};
+   const le=Calc.lineageErrors(sim);if(le.length)return fail(le[0]+'. Fix raw / copra kg, or assign the unassigned sale first.')}
   const no=e.no||Math.max(0,...live('batches').map(b=>b.no))+1;
   const b=await store.save('batches',{...e,no,dev:e.id?e.dev:DEV,date:rec.date,source:v('#f_src')||'Batch '+no,rawKg:rec.rawKg,buyTotal:Math.round(rec.rawKg*rec.buyPrice*100)/100,asarez:rec.asarez,copraKg:rec.copraKg});
   const g=live('expenses').find(x=>x.batch_id===b.id&&x.category==='Gas');if(rec.gas||g)await store.save('expenses',{...(g||{}),batch_id:b.id,date:rec.date,category:'Gas',amount:rec.gas||0,note:''});msg='Batch '+bl(b)+' saved ✓';
@@ -132,7 +136,7 @@ async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved �
   // UNASSIGNED sale (same price) instead of blocking the edit or losing revenue. User re-assigns it in Records.
   if(e.id){let sold=live('sales').filter(x=>x.batch_id===b.id).sort((x,y)=>(y.date||'').localeCompare(x.date||'')),excess=live('sales').filter(x=>x.batch_id===b.id).reduce((t,x)=>t+x.kg,0)-rec.copraKg;
    for(const x of sold){if(excess<=1e-9)break;const cut=Math.min(x.kg,excess);excess-=cut;
-    if(cut>=x.kg-1e-9)await store.save('sales',{...x,batch_id:null,from_batch:b.id});else{await store.save('sales',{...x,kg:Math.round((x.kg-cut)*1000)/1000});await store.save('sales',{batch_id:null,from_batch:b.id,date:x.date,kg:Math.round(cut*1000)/1000,price:x.price,buyer:x.buyer||''})}
+    if(cut>=x.kg-1e-9)await store.save('sales',{...x,batch_id:null,from_batch:b.id,lineage_copra:lc});else{await store.save('sales',{...x,kg:Math.round((x.kg-cut)*1000)/1000});await store.save('sales',{batch_id:null,from_batch:b.id,lineage_copra:lc,date:x.date,kg:Math.round(cut*1000)/1000,price:x.price,buyer:x.buyer||''})}
     msg+=` · ${N(cut,1)} kg of its sale moved to "not assigned" — open Records to assign it`}}}
  if(form==='sale'){if(!$('#f_batch').value)return fail('Pick a batch for this sale');const st=$('#f_st .on').dataset.s;
   if(st==='none'&&!e.id){msg='Marked as not yet sold (stock) ✓'}else{
@@ -166,7 +170,7 @@ document.addEventListener('click',async ev=>{const ed=ev.target.dataset?.ed,del=
  if(ed){const[t,id]=ed.split('|');editing=D[t].find(x=>x.id===id);form={batches:'buy',sales:'sale',charcoal:'char',expenses:'exp',uling_sales:'usale'}[t];show('add');renderForm();window.scrollTo(0,0)}
  if(del){const[t,id]=del.split('|');
   if(t==='charcoal'){const m=Calc.poolCheck(K,D.charcoal.find(x=>x.id===id),null);if(m){toast('⚠️ '+m);const r=$('#v-rec .card');if(r)r.insertAdjacentHTML('afterbegin',`<div class="note" id="delerr" style="background:#f8dcd5;border-color:#b5462f">⚠️ ${esc(m)}</div>`);return}}
-  if(!(window.__AUTOCONFIRM__||confirm('Delete this entry?')))return;await store.remove(t,id);if(t==='batches')for(const x of live('sales').concat(live('expenses')).filter(x=>x.batch_id===id))await store.remove(D.sales.includes(x)?'sales':'expenses',x.id);await load();toast('Deleted');sched()}});
+  if(!(window.__AUTOCONFIRM__||confirm('Delete this entry?')))return;await store.remove(t,id);if(t==='batches')for(const x of live('sales').concat(live('expenses')).filter(x=>x.batch_id===id||(!x.batch_id&&x.from_batch===id)))await store.remove(D.sales.includes(x)?'sales':'expenses',x.id);await load();toast('Deleted');sched()}});
 // ---------- backup / settings / sync ----------
 const cfg=()=>JSON.parse(localStorage.getItem('kopra_sync')||'{}');
 function renderMore(){const s=S(),c=cfg();

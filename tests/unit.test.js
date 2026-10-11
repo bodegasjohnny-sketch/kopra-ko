@@ -106,7 +106,7 @@ test('FIX4 sw never caches Supabase/API/cross-origin; cache name embedded in sw.
   const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');vm.runInNewContext(src+';this.isApi=isApi;this.V=V',ctx);const u=x=>new URL(x);
   assert.ok(ctx.isApi(u('https://abc.supabase.co/rest/v1/batches')));assert.ok(ctx.isApi(u('https://copra.johnnybodegas.com/auth/v1/token')));assert.ok(ctx.isApi(u('https://cdn.example.com/x.js')));
   assert.ok(!ctx.isApi(u('https://copra.johnnybodegas.com/app.js')));const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];
-  assert.equal(ver,'1.3.1');assert.equal(ctx.V,'kopra-'+ver)});
+  assert.equal(ver,'1.3.2');assert.equal(ctx.V,'kopra-'+ver)});
 test('v1.3.1 BLOCKER1 sw.js embeds the release version (bytes change every release), no importScripts, cache:reload',()=>{const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');
   const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];assert.ok(src.includes(`const SW_VERSION='${ver}'`));assert.ok(!/importScripts/.test(src));assert.ok(src.includes("cache:'reload'"))});
 test('SF CNAME + README signup note',()=>{assert.equal(fs.readFileSync(path.join(ROOT,'CNAME'),'utf8').trim(),'copra.johnnybodegas.com');assert.match(fs.readFileSync(path.join(ROOT,'README.md'),'utf8'),/disable.*sign.?ups/i)});
@@ -148,7 +148,7 @@ test('v1.3 FIX1 every seeded batch can be edited and saved with its own values',
 test('v1.3 FIX1 Hayag edit (3143.5 kg, ₱9.77, Asarez 10.5, gas 400, copra 723) is valid; excess sale becomes unassigned, totals keep revenue',()=>{
   assert.equal(Calc.validate('buy',{date:'2026-10-09',rawKg:3143.5,buyPrice:9.77,asarez:10.5,gas:400,copraKg:723}),null);
   const d=clone(SEED);const b=d.batches.find(x=>x.no===10);b.rawKg=3143.5;b.buyTotal=Math.round(3143.5*9.77*100)/100;b.copraKg=723;
-  const sale=d.sales.find(x=>x.batch_id===b.id);sale.kg=723;d.sales.push({id:'un',batch_id:null,kg:606,price:44,deleted:false});
+  const sale=d.sales.find(x=>x.batch_id===b.id);sale.kg=723;d.sales.push({id:'un',batch_id:null,from_batch:b.id,lineage_copra:1329,kg:606,price:44,deleted:false});
   const k=Calc.compute(d,TODAY),r=k.rows.find(x=>x.no===10);assert.equal(r.status,'sold');near(k.unassigned.kg,606);near(k.sales,317466);assert.deepEqual(Calc.validateBackup(d),[])});
 test('v1.3 FIX2 lifecycle: drying -> not yet sold (no price, not counted as sold) -> part -> Complete; realized uses actual price',()=>{
   const d=clone(SEED);d.batches.push({id:'n',no:11,rawKg:2000,buyTotal:19000,copraKg:0,deleted:false});let r=row(d,11);assert.equal(r.statusLabel,'Still drying');
@@ -212,10 +212,25 @@ test('v1.3.1 SF unassigned sale on import: caps + from_batch checked, still flag
   assert.ok(Calc.validateBackup(o).some(e=>/Copra price/.test(e)));const o2=clone(SEED);o2.sales.push({id:'un2',batch_id:null,kg:250000,price:44});assert.ok(Calc.validateBackup(o2).some(e=>/Kg sold/.test(e)));
   const o3=clone(SEED);o3.sales.push({id:'un3',batch_id:null,from_batch:'x" onerror="',kg:6,price:44});assert.ok(Calc.validateBackup(o3).some(e=>/from_batch/.test(e)));
   const o5=clone(SEED);o5.sales.push({id:'un5',batch_id:'missing',kg:6,price:44});assert.ok(Calc.validateBackup(o5).some(e=>/batch not found/.test(e)));
-  const o4=clone(SEED);o4.sales.push({id:'un4',batch_id:null,from_batch:o4.batches[9].id,kg:606,price:44});const st=DB.Store();await st.replaceAll(o4);const k=Calc.compute(await st.snapshot(),TODAY);
+  const o4=clone(SEED);const y4=o4.batches[9];y4.copraKg=723;y4.rawKg=3143.5;o4.sales.find(x=>x.batch_id===y4.id).kg=723;o4.sales.push({id:'un4',batch_id:null,from_batch:y4.id,lineage_copra:1329,kg:606,price:44});const st=DB.Store();await st.replaceAll(o4);const k=Calc.compute(await st.snapshot(),TODAY);
   near(k.unassigned.kg,606);assert.equal(k.bid.excluded,1)});
 test('v1.3.1 SF migration crash-safe: crash after pool sale written, before burn flipped -> no duplicate',async()=>{const old=clone(SEED);old.uling_sales=[];old.charcoal.forEach(c=>{if(c.ulingKg>0){c.status='sold';c.price=31}});
   const st=DB.Store();for(const t of ['settings','batches','sales','expenses','charcoal'])await st.adapter.putMany(t,old[t]);await st.adapter.put('meta',{id:'seeded',at:'x'});
   const b1=old.charcoal[0];await st.adapter.put('uling_sales',{id:'pre',kg:b1.ulingKg,price:31,from_burn:b1.id,deleted:false,synced:false});
   await st.migrate();const s=await st.snapshot();assert.equal(s.uling_sales.length,6);assert.ok(s.charcoal.every(c=>c.status!=='sold'));near(Calc.compute(s,TODAY).char.ulingSales,18693);
   const src=fs.readFileSync(path.join(ROOT,'db.js'),'utf8');assert.ok(src.indexOf("await a.put('uling_sales',u)")<src.indexOf("await S.save('charcoal',c)"))});
+
+// ================= v1.3.2: unassigned-sale lineage (hand-made backups in tests/fixtures) =================
+const FX=n=>JSON.parse(fs.readFileSync(path.join(ROOT,'tests','fixtures',n),'utf8'));
+test('v1.3.2 SF1 150,000 kg unassigned sale (no from_batch) is rejected; data unchanged',async()=>{const o=FX('bad-150k-unassigned.json');
+  assert.ok(Calc.validateBackup(o).some(e=>/must come from a real batch/.test(e)));const st=await fresh();const before=Calc.compute(await st.snapshot(),TODAY).sales;
+  await assert.rejects(st.replaceAll(o));near(Calc.compute(await st.snapshot(),TODAY).sales,before);assert.ok(before<1e6,`sales ₱${before}`)});
+test('v1.3.2 SF1 150,000 kg unassigned sale with from_batch + huge lineage_copra still rejected (capped by raw kg)',()=>{const E=Calc.validateBackup(FX('bad-150k-with-from_batch.json'));
+  assert.ok(E.some(e=>/batch #10: sold .* only 5780 kg copra made/.test(e)),E.join('|'))});
+test('v1.3.2 SF1 from_batch must be a real, live batch',()=>{assert.ok(Calc.validateBackup(FX('bad-unassigned-unknown-batch.json')).some(e=>/real batch/.test(e)));
+  assert.ok(Calc.validateBackup(FX('bad-unassigned-deleted-batch.json')).some(e=>/real batch/.test(e)))});
+test('v1.3.2 SF1 lineage cap: assigned + unassigned <= copra at split (Hayag 723+606 ok, 723+607 rejected)',async()=>{assert.deepEqual(Calc.validateBackup(FX('good-hayag-split.json')),[]);
+  assert.ok(Calc.validateBackup(FX('bad-hayag-over-lineage.json')).some(e=>/batch #10: sold 1330/.test(e)));const st=DB.Store();await st.replaceAll(FX('good-hayag-split.json'));near(Calc.compute(await st.snapshot(),TODAY).unassigned.kg,606)});
+test('v1.3.2 SF1 in-app and import share one rule (lineageErrors exported, used by validateBackup and app.js)',()=>{assert.equal(typeof Calc.lineageErrors,'function');
+  const app=fs.readFileSync(path.join(ROOT,'app.js'),'utf8');assert.ok(app.includes('Calc.lineageErrors(sim)'));assert.ok(/from_batch:b\.id,lineage_copra:lc/.test(app));
+  assert.ok(app.includes("(!x.batch_id&&x.from_batch===id)"),'batch delete cascades its unassigned sales')});
