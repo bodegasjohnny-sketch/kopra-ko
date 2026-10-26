@@ -14,7 +14,7 @@ const STATUS={drying:'Still drying',unsold:'Not yet sold',part:'Part sold',sold:
 function compute(db,today){
   today=today||new Date();
   const live=a=>(a||[]).filter(x=>!x.deleted);
-  const st={settings:(db.settings&&db.settings.find?live(db.settings)[0]:db.settings),batches:live(db.batches),sales:live(db.sales),expenses:live(db.expenses),charcoal:live(db.charcoal),usales:live(db.uling_sales)};
+  const st={settings:(db.settings&&db.settings.find?live(db.settings)[0]:db.settings),batches:live(db.batches),sales:live(db.sales),expenses:live(db.expenses),charcoal:live(db.charcoal),usales:live(db.uling_sales),life:live(db.lifetime_items)};
   const s=st.settings,B=st.batches.slice().sort((a,b)=>a.no-b.no);
   const unassignedAll=st.sales.filter(x=>!x.batch_id||!B.some(b=>b.id===x.batch_id));
   let rows=B.map(b=>{const pending=unassignedAll.some(x=>x.from_batch===b.id);
@@ -59,7 +59,10 @@ function compute(db,today){
   const copraNet=sales-buyTotal-batchExp-otherExp; // cash view
   const yld=rawDone?copraBid/rawDone:0,expPerKg=rawDone?(sum(bidRows,r=>r.exp)+otherExp)/rawDone:0;
   const hasData=rawDone>0&&copraBid>0;
-  const beRaw=yld*s.copraPrice-expPerKg,be=hasData?Math.floor(beRaw*100+1e-9)/100:null,good=hasData?Math.floor((beRaw-s.targetMargin)*100+1e-9)/100:null;
+  // v1.4 lifetime items (capital + one-off lifetime expenses). Never part of daily expenses. Optional in the bid (Settings switch, default OFF).
+  const lifeCap=sum(st.life.filter(x=>x.kind==='capital'),x=>x.amount),lifeOne=sum(st.life.filter(x=>x.kind==='expense'),x=>x.amount),lifeTotal=lifeCap+lifeOne;
+  const lifeOn=s.lifeInBid===true,lifeRawKg=rawDone?lifeTotal/rawDone:0;
+  const beRaw=yld*s.copraPrice-expPerKg-(lifeOn?lifeRawKg:0),be=hasData?Math.floor(beRaw*100+1e-9)/100:null,good=hasData?Math.floor((beRaw-s.targetMargin)*100+1e-9)/100:null;
   // ---- uling: ONE combined pool (bagol from all batches -> burns -> uling stock -> sales)
   const C=st.charcoal,Cd=C.filter(c=>c.status!=='burning'&&c.ulingKg>0),Cb=C.filter(c=>c.status==='burning');
   const bagolDone=sum(Cd,c=>c.bagolKg),inKiln=sum(Cb,c=>c.bagolKg),uling=sum(Cd,c=>c.ulingKg),ulingYield=bagolDone?uling/bagolDone:0;
@@ -67,6 +70,7 @@ function compute(db,today){
   const ulingExp=sum(st.expenses.filter(x=>x.category==='Uling'),x=>x.amount);
   const bagolExpected=raw*s.bagolRatio,bagolLeft=Math.max(0,bagolExpected-bagolDone),bagolOnHand=Math.max(0,bagolExpected-bagolDone-inKiln);
   const ulingNet=ulingSales-ulingExp,combined=realized+ulingNet;
+  const life=lifetime({rows,copra,buyTotal,sales,expenses:st.expenses,ulingSales,lifeCap,lifeOne,lifeTotal,s});
   // time
   const start=new Date(s.startDate+'T00:00:00');const t0=new Date(today.getFullYear(),today.getMonth(),today.getDate());
   const days=Math.max(1,Math.round((t0-start)/864e5)+1),weeks=days/7,months=days/30.44;
@@ -74,17 +78,37 @@ function compute(db,today){
   const budget=Object.entries(s.budget).map(([k,v])=>{const act=(byCat[k]||0);return {cat:k,budgetPerKg:v,actual:act,actualPerKg:raw?act/raw:0,budgetTotal:v*raw}});
   const room=raw?(copraNet+ulingNet)/raw:0;
   const meri=byCat['Merienda / meals']||0,meriCap=s.budget['Merienda / meals']||0;
-  return {rows,raw,copra,buyTotal,batchExp,otherExp,totalExp:batchExp+otherExp,sales,soldKg,onHand,copraNet,realized,unrealized,total:realized+unrealized,
+  return {life,rows,raw,copra,buyTotal,batchExp,otherExp,totalExp:batchExp+otherExp,sales,soldKg,onHand,copraNet,realized,unrealized,total:realized+unrealized,
     unassigned:{kg:unKg,value:unP,list:unassigned},pending:pendingRows.map(r=>({id:r.id,no:r.no,dev:r.dev,source:r.source})),dry,accuracy,projYield:projYield(bidRows),
     avgBuy:raw?buyTotal/raw:0,avgSell:soldKg?sales/soldKg:0,netPerKg:raw?copraNet/raw:0,margin:sales?copraNet/sales:0,
     costPerKgCopra:copra?(sum(done,r=>r.cost))/copra:0,stockValue:onHand*s.copraPrice,stockCost:sum(rows,r=>r.stockCost),
-    bid:{hasData,excluded:pendingRows.length,yield:yld,expPerKg,sell:s.copraPrice,be,beRaw,good,margin:s.targetMargin,pct:be?s.targetMargin/be:0,gasOnly:Object.keys(byCat).every(c=>c==='Gas'||c==='Uling')},
+    bid:{lifeOn,lifePerKg:lifeRawKg,hasData,excluded:pendingRows.length,yield:yld,expPerKg,sell:s.copraPrice,be,beRaw,good,margin:s.targetMargin,pct:be?s.targetMargin/be:0,gasOnly:Object.keys(byCat).every(c=>c==='Gas'||c==='Uling')},
     char:{hasCosts:ulingExp>0,burns:C,usales:st.usales,bagolDone,inKiln,uling,ulingSoldKg,ulingOnHand,ulingSales,ulingYield,ulingExp,ulingNet,bagolExpected,bagolLeft,bagolOnHand,
       avgPrice:ulingSoldKg?ulingSales/ulingSoldKg:0,potKg:bagolLeft*ulingYield,potP:bagolLeft*ulingYield*s.ulingPrice,bagolBE:s.ulingPrice*ulingYield},
     combined,share:combined/2,copraShare:realized/2,
     time:{days,weeks,months,rawWk:raw/weeks,rawMo:raw/months,copraWk:copra/weeks,copraMo:copra/months,netWk:copraNet/weeks,netMo:copraNet/months,combMo:(copraNet+ulingNet)/months},
     byCat,budget,room,meri:{spent:meri,capPerKg:meriCap,capTotal:meriCap*raw,capBatch:raw&&rows.length?meriCap*raw/rows.length:0,perKg:raw?meri/raw:0}};
 }
+// v1.4 Lifetime KPIs. Revenue = REALIZED only: copra actually sold (incl. unassigned sales) + uling pool sales.
+// Unsold copra adds its kg to "copra produced" but its value is NEVER counted as revenue.
+//  operating cost = all batch buy costs + ALL logged expenses (gas, bills, general, uling costs)
+//  all-in cost    = operating cost + lifetime items (capital + lifetime expenses)
+//  avg cost/kg    = cost / copra kg produced (gross: uling revenue NOT subtracted, same as the existing cost/kg copra)
+//  break-even/kg  = (cost - uling sales) / copra kg produced  (uling revenue IS netted: price needed on every kg made so far)
+//  best price/kg  = all-in break-even + target lifetime margin (Settings, default PHP 2)
+const LIFE={margin:2,recentN:5};
+const up2=n=>n==null?null:Math.ceil(n*100-1e-9)/100; // sell-side prices round UP (never shows a price that loses money)
+function lifetime(a){const{rows,copra,buyTotal,sales,expenses,ulingSales,lifeCap,lifeOne,lifeTotal,s}=a;
+  const allExp=sum(expenses,x=>x.amount),opCost=buyTotal+allExp,allIn=opCost+lifeTotal,revenue=sales+ulingSales;
+  const per=v=>copra>0?v/copra:null,margin=num(s.lifeMargin)?s.lifeMargin:LIFE.margin;
+  const avgOp=per(opCost),avgAll=per(allIn),beOp=up2(per(opCost-ulingSales)),beAll=up2(per(allIn-ulingSales));
+  const best=beAll==null?null:up2(beAll+margin),diff=best==null?null:r2(s.copraPrice-best);
+  const opProfit=revenue-opCost,recovered=lifeTotal>0?Math.min(lifeTotal,Math.max(0,opProfit)):0;
+  const toRecover=Math.max(0,allIn-revenue),recPct=lifeTotal>0?recovered/lifeTotal:null;
+  const recent=rows.filter(r=>r.status==='sold'&&!r.pending).slice(-LIFE.recentN),perBatch=recent.length?sum(recent,r=>r.net)/recent.length:null;
+  const payback=toRecover<=0?0:perBatch>0?Math.ceil(toRecover/perBatch-1e-9):null;
+  return {capital:lifeCap,oneOff:lifeOne,total:lifeTotal,allExp,opCost,allIn,revenue,copraSales:sales,ulingSales,copra,avgOp,avgAll,overheadPerKg:per(lifeTotal),
+    beOp,beAll,margin,best,price:s.copraPrice,diff,opProfit,recovered,recPct,toRecover,perBatch,recentN:recent.length,payback}}
 // Unassigned copra sales (split off when a batch's copra was cut below its sold kg) must each point (from_batch) to a real live
 // batch, and per batch lineage: assigned + unassigned kg <= copra the batch had when split (lineage_copra), never above its raw kg.
 // Shared by backup import AND the in-app save path so the app can never create a state its own importer rejects.
@@ -106,8 +130,9 @@ function projectNew(K,s,rawKg,buyTotal,bills){const py=K.projYield;if(!py||!(raw
 const num=v=>typeof v==='number'&&isFinite(v);
 const isDate=d=>d==null||d===''||(/^\d{4}-\d{2}-\d{2}$/.test(d)&&!isNaN(Date.parse(d+'T00:00:00Z'))&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d);
 // Sane upper caps (documented in README). Enforced in forms AND backup import.
-const CAPS={rawKg:200000,copraKg:200000,buyPrice:100,asarez:100,saleKg:200000,salePrice:200,expense:1000000,gas:1000000,bagolKg:100000,ulingKg:100000,ulingPrice:200,copraPrice:200,targetMargin:5,merienda:5,batchNo:1000000};
-const fmt=n=>n.toLocaleString('en-US');
+const CAPS={rawKg:200000,copraKg:200000,buyPrice:100,asarez:100,saleKg:200000,salePrice:200,expense:1000000,gas:1000000,bagolKg:100000,ulingKg:100000,ulingPrice:200,copraPrice:200,targetMargin:5,merienda:5,batchNo:1000000,lifeAmount:10000000,lifeMargin:20};
+const LIFE_KINDS=['capital','expense'],PAID_BY=['p1','p2','shared'];
+const fmt=n=>n.toLocaleString('en-US'),STR=(v,n)=>v==null||(typeof v==='string'&&v.length<=n);
 // Returns an error message (string) or null. ctx: {onHand (kg available for this batch incl. the sale being edited), today:'YYYY-MM-DD'}
 function validate(kind,r,ctx={}){
   const pos=(v,m)=>!num(v)||v<=0?m:null,nn=(v,m)=>v!=null&&v!==''&&(!num(v)||v<0)?m:null,cap=(v,c,m)=>num(v)&&v>c?`${m} cannot be more than ${fmt(c)}`:null;let e;
@@ -132,13 +157,18 @@ function validate(kind,r,ctx={}){
     if(!r.startDate||!isDate(r.startDate))return 'Start date is not valid';if(ctx.today&&r.startDate>ctx.today)return 'Start date cannot be in the future';
     if(e=pos(r.ulingPrice,'Uling price must be more than 0'))return e;if(r.ulingPrice>CAPS.ulingPrice)return `Uling price cannot be more than ₱${CAPS.ulingPrice}/kg`;
     if(!num(r.bagolRatio)||r.bagolRatio<=0||r.bagolRatio>=1)return 'Bagol % must be between 0 and 1 (e.g. 0.22)';
+    if(r.lifeMargin!=null&&(!num(r.lifeMargin)||r.lifeMargin<0||r.lifeMargin>CAPS.lifeMargin))return 'Lifetime margin must be between ₱0 and ₱20';
+    if(r.lifeInBid!=null&&typeof r.lifeInBid!=='boolean')return 'Lifetime-in-bid must be on or off';
     if(!num(r.merienda)||r.merienda<0||r.merienda>CAPS.merienda)return 'Merienda cap must be between ₱0 and ₱5 per kg';if(!Array.isArray(r.partners)||r.partners.length!==2||!r.partners.every(x=>typeof x==='string'&&x.trim()&&x.length<=40))return 'Enter both partner names';}
+  if(kind==='life'){if(typeof r.name!=='string'||!r.name.trim())return 'Enter a name (e.g. Drying tarps, BIR registration)';if(r.name.length>120)return 'Name cannot be more than 120 characters';
+    if(!LIFE_KINDS.includes(r.kind))return 'Pick Capital or Lifetime expense';if(e=pos(r.amount,'Amount must be more than 0'))return e;if(e=cap(r.amount,CAPS.lifeAmount,'Amount ₱'))return e;
+    if(!STR(r.note,200))return 'Note cannot be more than 200 characters';if(r.paidBy!=null&&r.paidBy!==''&&!PAID_BY.includes(r.paidBy))return 'Pick who paid';}
   return null}
 // Strict backup check: types, required fields, negatives, caps, references. Returns list of errors (empty = OK).
-const UUIDISH=/^[A-Za-z0-9-]{1,64}$/,STR=(v,n)=>v==null||(typeof v==='string'&&v.length<=n);
+const UUIDISH=/^[A-Za-z0-9-]{1,64}$/;
 function validateBackup(o){const E=[];const T=['settings','batches','sales','expenses','charcoal'];
   if(!o||typeof o!=='object'||Array.isArray(o))return ['Not a backup file'];
-  for(const t of T)if(!Array.isArray(o[t]))E.push(`Missing table "${t}"`);if(o.uling_sales!=null&&!Array.isArray(o.uling_sales))E.push('Bad table "uling_sales"');if(E.length)return E;
+  for(const t of T)if(!Array.isArray(o[t]))E.push(`Missing table "${t}"`);if(o.uling_sales!=null&&!Array.isArray(o.uling_sales))E.push('Bad table "uling_sales"');if(o.lifetime_items!=null&&!Array.isArray(o.lifetime_items))E.push('Bad table "lifetime_items"');if(E.length)return E;
   const live=t=>o[t].filter(r=>r&&r.deleted!==true);let n=0;const ids=new Set();
   const base=(t,r,i)=>{const w=`${t}[${i}]`;if(!r||typeof r!=='object'||Array.isArray(r)){E.push(`${w}: not a record`);return false}
     if(typeof r.id!=='string'||!UUIDISH.test(r.id))E.push(`${w}: bad id`);else if(ids.has(r.id))E.push(`${w}: duplicate id`);else ids.add(r.id);
@@ -163,7 +193,9 @@ function validateBackup(o){const E=[];const T=['settings','batches','sales','exp
   let made=sum(live('charcoal').filter(c=>c.status!=='burning'),c=>+c.ulingKg||0),sold=0;
   (o.uling_sales?o.uling_sales.filter(r=>r&&r.deleted!==true):[]).forEach((r,i)=>{if(!base('uling_sales',r,i))return;const w=`uling_sales[${i}]`;if(!STR(r.buyer,120))E.push(`${w}: bad buyer`);sold+=+r.kg||0;chk(w,validate('usale',{kg:r.kg,price:r.price}))});
   if(sold>made+1e-6)E.push('Uling sold is more than uling made');
+  (o.lifetime_items?o.lifetime_items.filter(r=>r&&r.deleted!==true):[]).forEach((r,i)=>{if(!base('lifetime_items',r,i))return;const w=`lifetime_items[${i}]`;
+    chk(w,validate('life',{name:r.name,kind:r.kind,amount:r.amount,note:r.note,paidBy:r.paidBy}))});
   return E.slice(0,20)}
-const api={lineageErrors,compute,r2,validate,validateBackup,isDate,CAPS,projectNew,PROJ,STATUS,poolCheck};
+const api={LIFE,LIFE_KINDS,PAID_BY,lifetime,lineageErrors,compute,r2,validate,validateBackup,isDate,CAPS,projectNew,PROJ,STATUS,poolCheck};
 if(typeof module!=='undefined')module.exports=api;else root.Calc=api;
 })(this);

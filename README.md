@@ -1,4 +1,4 @@
-# Kopra Ko: offline copra + uling tracker (PWA) v1.3.2
+# Kopra Ko: offline copra + uling tracker (PWA) v1.4.0
 Run locally: `python3 -m http.server 8765` → http://127.0.0.1:8765 (the service worker needs http/https).
 Tests:
 - `node --test tests/` (calc, store, validation, sync against a mock that mirrors the DB trigger)
@@ -17,6 +17,9 @@ Tests:
 | Expense, gas | > 0 and ≤ ₱1,000,000 per entry |
 | Bagol per burn | > 0 and ≤ 100,000 kg; uling 0 to bagol kg; uling price ≤ ₱200 |
 | Margin | ₱0–5; merienda cap ₱0–5 per kg |
+| Lifetime item amount | > 0 and ≤ ₱10,000,000 per item |
+| Lifetime item name / note | 120 / 200 chars; type = Capital or Lifetime expense; paid by = partner 1, partner 2, shared, or blank |
+| Lifetime target margin (Settings) | ₱0–20 per kg copra (default ₱2) |
 | Text fields | name/buyer 120 chars, note 200 chars |
 Backup import is checked strictly: types, required fields, negatives, caps, valid dates, unique IDs, batch references, and sold ≤ made. Unknown fields are dropped. A bad file is rejected and nothing changes.
 
@@ -30,6 +33,18 @@ Backup import is checked strictly: types, required fields, negatives, caps, vali
   - Projected profit = copra value − buy cost − every bill linked to the batch, so bills lower it as they are logged.
   - Once actual copra is entered, the projection becomes a variance figure. Accuracy is back-tested: each finished batch is projected only from the batches before it, and the average miss % plus how many landed inside the range are shown on the dashboard.
 - **Migration from v1.2 phones:** IndexedDB goes to version 2 (this only adds the `uling_sales` store). A one-time data step turns each v1.2 burn marked "sold" into status "done" plus one pool sale with the same kg and price. Nothing is deleted, and the step is safe to run twice. Importing a v1.2 backup applies the same step.
+
+## v1.4.0: Lifetime tab (capital + lifetime expenses)
+- New 🏗️ **Lifetime** tab, separate from daily 🧾 Gastos (daily expense entry is unchanged). Each item has a date, a name, a type (**Capital**: equipment, drying racks, tarps, kiln, truck/tools, materials; or **Lifetime expense**: BIR, business permit, licenses, one-off setup), an amount, an optional note, and an optional "paid by". You can add, edit and delete (soft delete) items. The tab shows totals for capital, lifetime expenses and both combined.
+- KPIs (in `Calc.compute(...).life`). Revenue counts only **realized** income: copra actually sold, plus uling pool sales. Unsold copra kg count in "copra made", but its value is never counted as income.
+  - Operating cost = all batch buy costs + all logged expenses (gas, batch bills, general, uling costs). All-in cost = operating cost + lifetime items.
+  - Average cost per kg copra = cost ÷ copra kg made. This is gross: uling income is **not** subtracted (same as the existing cost per kg copra).
+  - Break-even selling price = (cost − uling sold) ÷ copra kg made. Uling income **is** subtracted here. Shown for both operating-only and all-in, rounded **up** to the centavo.
+  - Best price = all-in break-even + lifetime target margin (Settings). The app compares it with the Settings copra price and says whether today's price is above or below it.
+  - Capital recovered % = max(0, revenue − operating cost) ÷ lifetime total. Still to recover = max(0, all-in cost − revenue). Payback = still to recover ÷ average net of the last 5 complete batches (copra only), rounded up. If those batches show no profit, no estimate is given.
+- Settings: **Include lifetime costs in buying power** (default OFF). When ON, the bid guide's break-even drops by lifetime total ÷ raw kg so far. Early on, this makes the bid look much lower.
+- IndexedDB goes to version 3 (this only adds the `lifetime_items` store, and nothing is deleted). Backups from before v1.4 import fine. Reset to starting data clears lifetime items, because the seed has none.
+- DB: run `supabase/migration_v140_lifetime.sql` (after schema.sql) **before** turning sync on with v1.4.0. It adds the lifetime_items table with RLS, CHECK caps and the kopra_stamp trigger, plus the settings columns `lifeMargin` and `lifeInBid`.
 
 ## Releasing
 - Bump `APP_VERSION` in version.js on every release (semver). sw.js names its cache `kopra-<version>` and deletes old `kopra-*` caches.

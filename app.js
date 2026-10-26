@@ -1,6 +1,6 @@
 // Kopra Ko app: UI + live KPIs from the local store.
 const store=DB.Store(window.indexedDB?DB.idbAdapter():DB.memoryAdapter());
-let D=null,K=null,charts={},form='buy',editing=null;
+let D=null,K=null,charts={},form='buy',editing=null,lifeEd=null;
 const $=s=>document.querySelector(s),P=n=>(n<0?'−':'')+'₱'+Math.abs(n).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}),
  P0=n=>(n<0?'−':'')+'₱'+Math.round(Math.abs(n)).toLocaleString('en-PH'),N=(n,d=0)=>(+n).toLocaleString('en-PH',{maximumFractionDigits:d,minimumFractionDigits:d}),pc=n=>(n*100).toFixed(2)+'%';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -21,7 +21,7 @@ function bidHTML(b,small){
  <div class="box be"><div class="t">⚖️ BREAK-EVEN${b.gasOnly?' (gas costs only)':''}</div><div class="p">${P(b.be)}</div><div class="d">Zero profit for both partners, copra only. Rounded down.${b.gasOnly?' <b>Real break-even is lower once other costs are logged.</b>':''}</div></div>
  <div class="box loss"><div class="t">❌ LOSS</div><div class="p">above ${P(b.be)}</div><div class="d">Any bid higher = lugi.</div></div></div>
  ${small?'':`<p class="sub" style="margin-top:8px"><b>How:</b> Yield <b>${pc(b.yield)}</b> × Copra price <b>${P(b.sell)}</b>/kg (from Settings) − Expenses <b>${P(b.expPerKg)}</b>/kg raw${b.gasOnly?' (gas only — labor, sacks, meals not logged yet)':''} = <b>${P(b.be)}</b>.</p>`}
- ${exNote}<div class="note">🔥 Uling income is a <b>bonus cushion</b>, not counted. Unsold stock does not change the bid (it uses yield).</div>`}
+ ${b.lifeOn?`<div class="note" id="bidlife">🏗️ <b>Lifetime costs included:</b> bid lowered by ${P(b.lifePerKg)}/kg raw (capital + lifetime expenses ÷ raw kg so far). Turn off in Settings.</div>`:''}${exNote}<div class="note">🔥 Uling income is a <b>bonus cushion</b>, not counted. Unsold stock does not change the bid (it uses yield).</div>`}
 
 function render(){
  const s=S(),t=K.time,c=K.char;
@@ -30,6 +30,7 @@ function render(){
   ["Avg buy price / kg",P(K.avgBuy),"weighted"],["Net per kg raw",P(K.netPerKg),"margin "+(K.margin*100).toFixed(1)+"%"],["Raw bought",N(K.raw)+" kg","→ "+N(K.copra,1)+" kg copra"],["Avg yield",pc(K.bid.yield),"sold avg "+P(K.avgSell)+"/kg"]];
  $('#v-home').innerHTML=`<div class="kpis" id="kpis">${kp.map(k=>`<div class="kpi"><div class="l">${k[0]}</div><div class="v">${k[1]}</div><div class="s">${esc(k[2])}</div></div>`).join('')}</div>
  <div class="card" id="bidguide" style="border:2px solid var(--g)"><h2>Bid Guide (lifetime benchmark) 🏷️</h2><p class="sub">Price per kg of <b>raw coconut</b> for the next batch. Updates when you save.</p>${bidHTML(K.bid)}</div>
+ ${lifeSummary()}
  <div class="card" id="plsplit"><h2>Profit: sold vs. not yet sold</h2><p class="sub">Copra only. Uling not included.</p><div class="g3">
   <div class="box good"><div class="t">✅ REALIZED (sold)</div><div class="p">${P(K.realized)}</div><div class="d">${N(K.soldKg,1)} kg sold</div></div>
   <div class="box be"><div class="t">📦 UNREALIZED (stock at ${P(s.copraPrice)})</div><div class="p">${P(K.unrealized)}</div><div class="d">${N(K.onHand,1)} kg on hand</div></div>
@@ -70,7 +71,7 @@ function render(){
  <div class="card" id="share"><h2>50/50 sharing</h2><div class="kv"><span>Copra realized</span><b>${P(K.realized/2)} each</b></div><div class="kv"><span>${c.hasCosts?"Uling net":"Uling gross (no costs logged)"}</span><b>${P(c.ulingNet/2)} each</b></div><div class="kv"><span><b>${esc(s.partners[0])}</b></span><b>${P(K.share)}</b></div><div class="kv"><span><b>${esc(s.partners[1])}</b></span><b>${P(K.share)}</b></div></div>
  <div class="card"><h2>Per-batch table</h2><p class="sub">Swipe → on phone</p><div class="tw"><table id="tbl"><tr><th>#</th><th>Source</th><th>Raw kg</th><th>Buy/kg</th><th>Asarez</th><th>Status</th><th>Proj. copra</th><th>Copra kg</th><th>Var.</th><th>Yield</th><th>Sold kg</th><th>On hand</th><th>Sell ₱</th><th>Exp</th><th>Net</th><th>B-E</th></tr>
   ${K.rows.map(r=>`<tr><td>${bl(r)}</td><td>${esc(r.source)}</td><td>${N(r.rawKg,1)}</td><td>${P(r.buy)}</td><td>${r.asarez?P(r.asarez):'—'}</td><td>${esc(r.statusLabel)}</td><td>${r.proj?N(r.proj.copra):'—'}</td><td>${r.copraKg?N(r.copraKg,1):'—'}</td><td class="${r.proj&&r.proj.variancePct!=null?(r.proj.inRange?'':'neg'):''}">${r.proj&&r.proj.variancePct!=null?(r.proj.variancePct>=0?'+':'')+(r.proj.variancePct*100).toFixed(1)+'%':'—'}</td><td>${r.yield?pc(r.yield):'—'}</td><td>${N(r.soldKg,1)}</td><td>${N(r.onHand,1)}</td><td>${P(r.sellPrice)}</td><td>${P(r.exp)}</td><td class="${r.net>=0?'pos':'neg'}">${P(r.net)}</td><td>${r.be?P(r.be):'—'}</td></tr>`).join('')}</table></div></div>`;
- drawCharts();renderForm();renderRecords();renderMore();
+ drawCharts();renderForm();renderRecords();renderLife();renderMore();
 }
 function drawCharts(){if(!window.Chart)return;Object.values(charts).forEach(c=>c.destroy());charts={};
  const R=K.rows,L=R.map(bl),o={maintainAspectRatio:false,animation:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}}}};
@@ -79,6 +80,42 @@ function drawCharts(){if(!window.Chart)return;Object.values(charts).forEach(c=>c
  let c=0;charts.pl=new Chart($('#cPL'),{data:{labels:L,datasets:[{type:'line',label:'Running total',data:R.map(r=>c+=r.net),borderColor:'#1f4d3a',yAxisID:'y1'},{type:'bar',label:'Net per batch',data:R.map(r=>r.net),backgroundColor:R.map(r=>r.net<0?'#b5462f':'#e0a526')}]},options:{...o,scales:{y1:{position:'right',grid:{display:false}}}}});
  const cats=Object.keys(K.byCat);charts.e=new Chart($('#cExp'),{type:'doughnut',data:{labels:cats,datasets:[{data:cats.map(k=>K.byCat[k]),backgroundColor:['#1f4d3a','#e0a526','#7a5230','#b5462f','#2e7d4f','#a47148','#6f6a5e','#d9c9a5','#4f9a6b','#333']}]},options:o});
 }
+// ---------- v1.4 lifetime (capital + one-off lifetime expenses; separate from daily Gastos) ----------
+const PAID=()=>({p1:S().partners[0],p2:S().partners[1],shared:'Shared 50/50'});
+const pr=n=>n==null?'—':P(n);
+function lifeSummary(){const L=K.life;return `<div class="card" id="lifesum"><h2>Lifetime (all-in) 🏗️</h2><p class="sub">Includes capital + lifetime expenses (${P0(L.total)}). Details in the 🏗️ Lifetime tab.</p>
+ <div class="kv"><span>Average cost / kg copra (all-in)</span><b>${pr(L.avgAll)}</b></div><div class="kv"><span>Break-even selling price (all-in)</span><b>${pr(L.beAll)}</b></div>
+ <div class="kv"><span>Best price to sell copra</span><b>${pr(L.best)}</b></div></div>`}
+function renderLife(){const L=K.life,s=S(),e=lifeEd||{},pb=PAID(),items=live('lifetime_items').sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+ const verdict=L.best==null?'Add a batch with its dried copra kg first, then your best price shows here.':
+  L.diff>=0?`✅ Selling at today's price ${P(L.price)} is <b>above</b> your best price by <b>${P(L.diff)}/kg</b>.`:`⚠️ Selling at today's price ${P(L.price)} is <b>below</b> your best price by <b>${P(-L.diff)}/kg</b>.`;
+ $('#v-life').innerHTML=`<div class="card" id="lifekpi" style="border:2px solid var(--g)"><h2>Lifetime numbers 🏗️</h2><p class="sub">From day one up to today. Revenue counts only copra <b>already sold</b> + uling sold. Unsold copra is not counted as income.</p>
+ <div class="kpis"><div class="kpi"><div class="l">Operating cost to date</div><div class="v">${P0(L.opCost)}</div><div class="s">buying + all gastos</div></div>
+  <div class="kpi"><div class="l">All-in cost to date</div><div class="v">${P0(L.allIn)}</div><div class="s">operating + lifetime ${P0(L.total)}</div></div>
+  <div class="kpi"><div class="l">Average cost / kg copra</div><div class="v" id="lavg">${pr(L.avgAll)}</div><div class="s">all-in · operating only ${pr(L.avgOp)}</div></div>
+  <div class="kpi"><div class="l">Break-even selling price</div><div class="v" id="lbe">${pr(L.beAll)}</div><div class="s">all-in · operating only ${pr(L.beOp)}</div></div></div>
+ <p class="sub">Average cost = total cost ÷ ${N(L.copra,1)} kg copra made (uling income <b>not</b> subtracted). Break-even = (total cost − uling sold ${P0(L.ulingSales)}) ÷ kg copra made: the price you need on every kg to get all your money back.</p>
+ <div class="box tot" id="lbest"><div class="t">💰 BEST PRICE TO SELL COPRA</div><div class="p">${pr(L.best)}</div><div class="d">Break-even (all-in) + your target ${P(L.margin)}/kg (change in Settings)</div></div>
+ <div class="note" id="lverdict">${verdict}</div>
+ <div class="kv"><span>Capital recovered</span><b id="lrec">${L.recPct==null?'— (no lifetime items yet)':(L.recPct*100).toFixed(1)+'%'}</b></div>
+ <div class="kv"><span>Still to recover</span><b id="ltodo">${P(L.toRecover)}</b></div>
+ <div class="kv"><span>Payback estimate</span><b id="lpay">${L.toRecover<=0?'All recovered ✓':L.payback==null?'Not yet — recent batches show no profit':`about ${N(L.payback)} more batch${L.payback>1?'es':''}`}</b></div>
+ <p class="sub">${L.perBatch==null?'':`Based on average profit ${P0(L.perBatch)} per batch (last ${L.recentN} complete batches, copra only).`}</p></div>
+ <div class="card" id="lifeform"><h2>${e.id?'Edit':'Add'} lifetime item</h2><p class="sub">For things you pay once and use for a long time. Daily costs (gas, labor, meals) still go in ➕ Add → 🧾 Gastos.</p>
+  ${fld('l_date','Date',e.date||iso(),'date')}${fld('l_name','Name (e.g. Drying tarps, BIR registration)',e.name||'','text','maxlength="120"')}
+  <label for="l_kind">Type</label><select id="l_kind"><option value="capital" ${e.kind!=='expense'?'selected':''}>Capital (equipment, racks, tarps, kiln, truck/tools, materials)</option><option value="expense" ${e.kind==='expense'?'selected':''}>Lifetime expense (BIR, business permit, licenses, setup)</option></select>
+  ${fld('l_amt','Amount ₱',e.amount||'')}<label for="l_paid">Paid by (optional)</label><select id="l_paid"><option value="">—</option>${Object.entries(pb).map(([k,v])=>`<option value="${k}" ${e.paidBy===k?'selected':''}>${esc(v)}</option>`).join('')}</select>
+  ${fld('l_note','Note (optional)',e.note||'','text','maxlength="200"')}<div class="note" id="l_err" style="display:none;background:#f8dcd5;border-color:#b5462f"></div>
+  <button class="btn" id="l_save">💾 I-save</button>${e.id?'<button class="btn sec" id="l_cancel">Cancel edit</button>':''}</div>
+ <div class="card" id="lifelist"><h2>Lifetime items</h2>
+  <div class="kv"><span>Capital</span><b id="lcap">${P(L.capital)}</b></div><div class="kv"><span>Lifetime expenses</span><b id="lone">${P(L.oneOff)}</b></div><div class="kv"><span><b>Total</b></span><b id="ltot">${P(L.total)}</b></div>
+  ${items.length?items.map(x=>`<div class="item"><span>${x.kind==='capital'?'🧰':'📄'} <b>${esc(x.name)}</b> · ${P(x.amount)}<br><span class="sub">${x.kind==='capital'?'Capital':'Lifetime expense'} · ${esc(x.date||'')}${x.paidBy?' · paid by '+esc(pb[x.paidBy]||''):''}${x.note?' · '+esc(x.note):''}</span></span><span style="white-space:nowrap"><button data-led="${esc(x.id)}">Edit</button> <button class="del" data-ldel="${esc(x.id)}">🗑</button></span></div>`).join('')
+   :'<div class="note" id="lifeempty">No lifetime items yet. Add your equipment, materials, BIR and permits above. Until then all-in numbers equal operating numbers.</div>'}</div>`;
+ $('#l_save').onclick=saveLife;if($('#l_cancel'))$('#l_cancel').onclick=()=>{lifeEd=null;renderLife()}}
+async function saveLife(){const e=lifeEd||{},n=$('#l_amt').value.trim();
+ const rec={date:$('#l_date').value||null,name:$('#l_name').value.trim(),kind:$('#l_kind').value,amount:n===''?null:+n,note:$('#l_note').value.trim(),paidBy:$('#l_paid').value||null};
+ const m=Calc.validate('life',rec);if(m){toast('⚠️ '+m);$('#l_err').textContent='⚠️ '+m;$('#l_err').style.display='block';return}
+ await store.save('lifetime_items',{...e,...rec});lifeEd=null;await load();toast('Lifetime item saved ✓');sched()}
 // ---------- forms ----------
 const fld=(id,l,v='',type='number',ext='')=>`<label for="${id}">${l}</label><input id="${id}" type="${type}" inputmode="${type==='number'?'decimal':'text'}" value="${esc(v)}" ${ext}>`;
 const batchOpts=(sel,onlyStock)=>K.rows.slice().reverse().filter(r=>!onlyStock||r.copraKg>0||r.id===sel).map(r=>`<option value="${esc(r.id)}" ${r.id===sel?'selected':''}>${bl(r)} ${esc(r.source)} (${N(r.copraKg||0,1)} kg copra, ${N(r.onHand,1)} on hand)</option>`).join('');
@@ -165,7 +202,10 @@ function renderRecords(){const rows=[];
  $('#v-rec').innerHTML=`<div class="card"><h2>Records (edit / delete)</h2><p class="sub">Deleted entries are kept hidden for sync and can be restored from backup.</p>${rows.map(([t,r,l])=>`<div class="item"><span>${l}</span><span style="white-space:nowrap">${t==='batches'&&(r.status==='unsold'||r.status==='part')?`<button class="sell" data-sell="${esc(r.id)}">Sold</button> `:''}<button data-ed="${esc(t+'|'+r.id)}">Edit</button> <button class="del" data-del="${esc(t+'|'+r.id)}">🗑</button></span></div>`).join('')}</div>`;
 }
 let preBatch=null;
-document.addEventListener('click',async ev=>{const ed=ev.target.dataset?.ed,del=ev.target.dataset?.del,sell=ev.target.dataset?.sell;
+document.addEventListener('click',async ev=>{const led=ev.target.dataset?.led,ldel=ev.target.dataset?.ldel;
+ if(led){lifeEd=D.lifetime_items.find(x=>x.id===led);renderLife();window.scrollTo(0,$('#lifeform').offsetTop-70);return}
+ if(ldel){if(!(window.__AUTOCONFIRM__||confirm('Delete this lifetime item?')))return;await store.remove('lifetime_items',ldel);if(lifeEd&&lifeEd.id===ldel)lifeEd=null;await load();toast('Deleted');sched();return}
+ const ed=ev.target.dataset?.ed,del=ev.target.dataset?.del,sell=ev.target.dataset?.sell;
  if(sell){editing=null;form='sale';preBatch=sell;show('add');$('#aftersave').innerHTML='';renderForm();preBatch=null;window.scrollTo(0,0);return}
  if(ed){const[t,id]=ed.split('|');editing=D[t].find(x=>x.id===id);form={batches:'buy',sales:'sale',charcoal:'char',expenses:'exp',uling_sales:'usale'}[t];show('add');renderForm();window.scrollTo(0,0)}
  if(del){const[t,id]=del.split('|');
@@ -175,11 +215,14 @@ document.addEventListener('click',async ev=>{const ed=ev.target.dataset?.ed,del=
 const cfg=()=>JSON.parse(localStorage.getItem('kopra_sync')||'{}');
 function renderMore(){const s=S(),c=cfg();
  $('#v-more').innerHTML=`<div class="card"><h2>Backup 💾</h2><p class="sub">Save a copy to your phone or Google Drive regularly.</p>
- <button class="btn" id="bx">⬇️ Export JSON (full backup)</button><button class="btn sec" id="bc">⬇️ Export CSV (batches, sales, expenses, uling)</button>
- <label>Import JSON backup</label><input type="file" id="bi" accept=".json,application/json"><div class="note" id="bierr" style="display:none;background:#f8dcd5;border-color:#b5462f"></div><button class="btn red" id="br">Reset to original seed data</button></div>
+ <button class="btn" id="bx">⬇️ Export JSON (full backup)</button><button class="btn sec" id="bc">⬇️ Export CSV (batches, sales, expenses, uling, lifetime)</button>
+ <label>Import JSON backup</label><input type="file" id="bi" accept=".json,application/json"><div class="note" id="bierr" style="display:none;background:#f8dcd5;border-color:#b5462f"></div><button class="btn red" id="br">Reset to original seed data</button><p class="sub">Reset also clears lifetime items (the starting data has none).</p></div>
  <div class="card"><h2>Settings</h2>${fld('s_cp','Current copra price ₱/kg',s.copraPrice)}${fld('s_m','Target margin ₱/kg (good bid = break-even − this)',s.targetMargin)}
  ${fld('s_start','Business start date',s.startDate,'date')}<div class="row"><div>${fld('s_p1','Partner 1',s.partners[0],'text')}</div><div>${fld('s_p2','Partner 2',s.partners[1],'text')}</div></div>
- <div class="row"><div>${fld('s_up','Uling price ₱/kg',s.ulingPrice)}</div><div>${fld('s_br','Bagol % of raw',s.bagolRatio)}</div></div>${fld('s_mc','Merienda cap ₱/kg raw',s.budget['Merienda / meals'])}<div class="note" id="s_err" style="display:none;background:#f8dcd5;border-color:#b5462f"></div><button class="btn" id="ss">Save settings</button></div>
+ <div class="row"><div>${fld('s_up','Uling price ₱/kg',s.ulingPrice)}</div><div>${fld('s_br','Bagol % of raw',s.bagolRatio)}</div></div>${fld('s_mc','Merienda cap ₱/kg raw',s.budget['Merienda / meals'])}
+ ${fld('s_lm','Lifetime target margin ₱/kg copra (best price = lifetime break-even + this)',s.lifeMargin??Calc.LIFE.margin)}
+ <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="s_lb" style="width:auto" ${s.lifeInBid===true?'checked':''}> Include lifetime costs in buying power (bid guide)</label>
+ <p class="sub" id="s_lbhelp">Default off. Early on, capital spread over few kg makes cost per kg look high; it falls as you buy more.</p><div class="note" id="s_err" style="display:none;background:#f8dcd5;border-color:#b5462f"></div><button class="btn" id="ss">Save settings</button></div>
  ${FLAGS?`<div class="card" id="synccard"><h2>Cloud sync (beta) ☁️</h2><p class="sub">App works fully offline. Fill these in only when the Supabase project exists.</p>
  ${fld('c_url','Supabase URL',c.url||'','text')}${fld('c_key','Anon key',c.anonKey||'','text')}${fld('c_team','Team ID',c.teamId||'','text')}${fld('c_em','Email',c.user||'','email')}${fld('c_pw','Password','','password')}
  <button class="btn" id="cl">Sign in & sync now</button><p class="sub" id="cs" style="margin-top:8px">${c.accessToken?'Signed in as '+esc(c.user):'Not connected (offline only)'} · unsynced: <span id="cu"></span></p><div class="note" id="syncerr" style="display:none"></div></div>`:''}<p class="sub" style="text-align:center">Kopra Ko v${typeof APP_VERSION!=='undefined'?APP_VERSION:'?'}</p>`;
@@ -188,13 +231,14 @@ function renderMore(){const s=S(),c=cfg();
  const dl=(name,txt,type)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()};
  $('#bx').onclick=async()=>dl(`kopra-backup-${iso()}.json`,JSON.stringify({app:'kopra',exported:new Date().toISOString(),...await store.snapshot()},null,1),'application/json');
  $('#bc').onclick=()=>{const csv=(rows,cols)=>[cols.join(',')].concat(rows.map(r=>cols.map(c=>JSON.stringify(r[c]??'')).join(','))).join('\n');
-  dl(`kopra-${iso()}.csv`,['# batches',csv(K.rows,['no','date','source','rawKg','buy','buyTotal','asarez','copraKg','soldKg','onHand','sellPrice','exp','net','be']),'','# sales',csv(live('sales'),['batch_id','date','kg','price','buyer']),'','# expenses',csv(live('expenses'),['date','category','amount','batch_id','note']),'','# uling burns',csv(live('charcoal'),['no','date','bagolKg','ulingKg','status']),'','# uling sales (pool)',csv(live('uling_sales'),['date','kg','price','buyer'])].join('\n'),'text/csv')};
+  dl(`kopra-${iso()}.csv`,['# batches',csv(K.rows,['no','date','source','rawKg','buy','buyTotal','asarez','copraKg','soldKg','onHand','sellPrice','exp','net','be']),'','# sales',csv(live('sales'),['batch_id','date','kg','price','buyer']),'','# expenses',csv(live('expenses'),['date','category','amount','batch_id','note']),'','# uling burns',csv(live('charcoal'),['no','date','bagolKg','ulingKg','status']),'','# uling sales (pool)',csv(live('uling_sales'),['date','kg','price','buyer']),'','# lifetime items',csv(live('lifetime_items'),['date','name','kind','amount','paidBy','note'])].join('\n'),'text/csv')};
  $('#bi').onchange=async ev=>{const f=ev.target.files[0];ev.target.value='';if(!f)return;try{const o=JSON.parse(await f.text());await store.replaceAll(o);await load();toast('Backup restored ✓');sched()}catch(e){toast('⚠️ '+(e.errors?'Backup rejected: '+e.errors[0]:'Not a valid backup file'));const x=$('#bierr');if(x){x.style.display='block';x.textContent='⚠️ Backup rejected: '+(e.errors||[e.message]).slice(0,5).join(' · ')}}};
  $('#br').onclick=async()=>{if(!(window.__AUTOCONFIRM__||confirm('Erase all entries and reload seed data?')))return;await store.replaceAll(SEED);await load();toast('Reset ✓');sched()};
  $('#ss').onclick=async()=>{const n=id=>{const x=$(id).value.trim();return x===''?null:+x};
-  const m=Calc.validate('settings',{copraPrice:n('#s_cp'),targetMargin:n('#s_m'),startDate:$('#s_start').value,ulingPrice:n('#s_up'),bagolRatio:n('#s_br'),merienda:n('#s_mc'),partners:[$('#s_p1').value,$('#s_p2').value]},{today:iso()});
+  const m=Calc.validate('settings',{copraPrice:n('#s_cp'),targetMargin:n('#s_m'),startDate:$('#s_start').value,ulingPrice:n('#s_up'),bagolRatio:n('#s_br'),merienda:n('#s_mc'),lifeMargin:n('#s_lm'),lifeInBid:$('#s_lb').checked,partners:[$('#s_p1').value,$('#s_p2').value]},{today:iso()});
+  if(n('#s_lm')==null){const m2='Lifetime margin must be between ₱0 and ₱20';toast('⚠️ '+m2);$('#s_err').textContent='⚠️ '+m2;$('#s_err').style.display='block';return}
   if(m){toast('⚠️ '+m);$('#s_err').textContent='⚠️ '+m;$('#s_err').style.display='block';return}
-  await store.save('settings',{...s,copraPrice:n('#s_cp'),targetMargin:n('#s_m'),startDate:$('#s_start').value,partners:[$('#s_p1').value,$('#s_p2').value],ulingPrice:n('#s_up'),bagolRatio:n('#s_br'),budget:{...s.budget,'Merienda / meals':n('#s_mc')}});await load();toast('Settings saved ✓');sched()};
+  await store.save('settings',{...s,copraPrice:n('#s_cp'),targetMargin:n('#s_m'),startDate:$('#s_start').value,partners:[$('#s_p1').value,$('#s_p2').value],ulingPrice:n('#s_up'),bagolRatio:n('#s_br'),budget:{...s.budget,'Merienda / meals':n('#s_mc')},lifeMargin:n('#s_lm'),lifeInBid:$('#s_lb').checked});await load();toast('Settings saved ✓');sched()};
  if(FLAGS)$('#cl').onclick=async()=>{const c={url:$('#c_url').value.trim(),anonKey:$('#c_key').value.trim(),teamId:$('#c_team').value.trim()};if(!c.url||!c.anonKey||!c.teamId)return toast('Fill URL, key, team ID');
   try{Object.assign(c,await Sync.signIn(c,$('#c_em').value,$('#c_pw').value));localStorage.setItem('kopra_sync',JSON.stringify(c));await runSync(true)}catch(e){toast('⚠️ '+e.message)}};
 }
