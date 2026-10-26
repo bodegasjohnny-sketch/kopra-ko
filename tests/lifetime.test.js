@@ -18,15 +18,17 @@ test('v1.4 worked example (hand-checked): average cost, break-even, best price, 
   assert.equal(l.beAll,53.23);  // (385,609.34 − 18,693) / 6,893.8 = 53.224 → 53.23
   assert.equal(l.best,55.23);   // 53.23 + ₱2 default margin
   assert.equal(l.diff,-11.23);  // Settings ₱44 is ₱11.23/kg BELOW the best price
+  assert.equal(l.bestOp,40.00); // v1.4.1: operating-only best = 38.00 + ₱2 margin
+  assert.equal(l.diffOp,4.00);  // Settings ₱44 is ₱4.00/kg ABOVE the operating-only best price
   near(l.opProfit,55549.66);near(l.recPct,55549.66/105000,1e-9);near(l.toRecover,385609.34-336159);   // 52.9% recovered, ₱49,450.34 to go
   near(l.perBatch,3480.168,0.001);assert.equal(l.payback,15)});            // 49,450.34 / 3,480.17 = 14.2 → 15 batches
 test('v1.4 no lifetime items: all-in == operating, existing numbers unchanged, no NaN',()=>{const a=Calc.compute(SEED,TODAY),b=Calc.compute({...clone(SEED),lifetime_items:[]},TODAY);
-  assert.equal(a.life.allIn,a.life.opCost);assert.equal(a.life.avgAll,a.life.avgOp);assert.equal(a.life.beAll,a.life.beOp);assert.equal(a.life.recPct,null);assert.equal(a.life.toRecover,0);
+  assert.equal(a.life.allIn,a.life.opCost);assert.equal(a.life.avgAll,a.life.avgOp);assert.equal(a.life.beAll,a.life.beOp);assert.equal(a.life.bestOp,a.life.best);assert.equal(a.life.diffOp,a.life.diff);assert.equal(a.life.best,40.00);assert.equal(a.life.recPct,null);assert.equal(a.life.toRecover,0);
   assert.equal(strip(a),strip(b));assert.equal(a.bid.be,10.15);assert.equal(a.bid.good,9.65);near(a.copraNet,36856.66);near(a.combined,55549.66);noNaN(a.life);noNaN(b.bid);
   // and lifetime items (switch OFF) never move any existing dashboard number
   assert.equal(strip(Calc.compute(withEx(),TODAY)),strip(a));const be=Calc.compute(withEx(),TODAY).bid;assert.equal(be.be,10.15);assert.equal(be.good,9.65);assert.equal(be.lifeOn,false)});
 test('v1.4 empty data and zero copra kg: no NaN, prices null',()=>{const E={settings:SEED.settings,batches:[],sales:[],expenses:[],charcoal:[],lifetime_items:clone(EXAMPLE)};
-  let l=Calc.compute(E,TODAY).life;noNaN(l);assert.equal(l.avgAll,null);assert.equal(l.beAll,null);assert.equal(l.best,null);assert.equal(l.diff,null);near(l.toRecover,105000);assert.equal(l.payback,null);
+  let l=Calc.compute(E,TODAY).life;noNaN(l);assert.equal(l.avgAll,null);assert.equal(l.beAll,null);assert.equal(l.best,null);assert.equal(l.diff,null);assert.equal(l.bestOp,null);assert.equal(l.diffOp,null);near(l.toRecover,105000);assert.equal(l.payback,null);
   l=Calc.compute({...E,lifetime_items:[]},TODAY).life;noNaN(l);assert.equal(l.allIn,0);assert.equal(l.recPct,null);assert.equal(l.payback,0);
   l=Calc.compute({...E,batches:[{id:'d',no:1,rawKg:1000,buyTotal:9000,copraKg:0}]},TODAY).life;noNaN(l);assert.equal(l.copra,0);assert.equal(l.avgOp,null);near(l.allIn,114000)});
 test('v1.4 unsold copra is NOT revenue (no unrealized value in break-even / recovery)',()=>{const d=withEx();d.sales.find(s=>s.kg===1329).kg=1000;const a=Calc.compute(withEx(),TODAY).life,b=Calc.compute(d,TODAY).life;

@@ -173,7 +173,7 @@ with sync_playwright() as p:
   ctx.set_offline(True);pg.reload();pg.wait_for_function("window.__K");ok("works offline (SW cache)",pg.evaluate("Object.keys(Chart.instances).length")>=4);ctx.set_offline(False)
   ok("no JS errors",not errs,"; ".join(errs[:3]))
   f=b.new_page(viewport={"width":390,"height":844});f.goto(U+"?sync=1");f.wait_for_function("window.__K");f.click("nav button[data-v=more]");ok("SF sync card shown only with flag",f.locator("#synccard").count()==1)
-  ok("version shown v1.4.0","v1.4.0" in f.inner_text("#v-more"))
+  ok("version shown v1.4.0","v1.4.1" in f.inner_text("#v-more"))
   # v1.2 -> v1.3 IndexedDB migration on a phone with existing data
   m=b.new_context(viewport={"width":390,"height":844});mp=m.new_page();mp.goto(U.replace("index.html","manifest.webmanifest"))
   mp.evaluate("""async()=>{const src=await (await fetch('seed.js')).text();const SEED=new Function(src+';return SEED')();
@@ -199,11 +199,11 @@ with sync_playwright() as p:
     up.evaluate("(async()=>{const r=await store.save('batches',{no:11,source:'Phone batch before upgrade',rawKg:1000,buyTotal:9000,copraKg:0})})()");up.wait_for_timeout(300)
     os.remove(base+"/cur");os.symlink(base+"/new",base+"/cur")   # server now serves v1.3.1
     up.evaluate("navigator.serviceWorker.getRegistration().then(r=>r.update())")
-    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.4.0'",timeout=20000,polling=300)
+    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.4.1'",timeout=20000,polling=300)
     up.reload();up.wait_for_function("window.__K");KU=up.evaluate("window.__K")
-    ok("UPGRADE: SW updated, cache bumped to kopra-1.4.0 (old cache gone), page runs v1.4.0",up.evaluate("self.APP_VERSION")=="1.4.0" and up.evaluate("caches.keys()")==["kopra-1.4.0"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.4.0'\"))"))
+    ok("UPGRADE: SW updated, cache bumped to kopra-1.4.1 (old cache gone), page runs v1.4.1",up.evaluate("self.APP_VERSION")=="1.4.1" and up.evaluate("caches.keys()")==["kopra-1.4.1"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.4.1'\"))"))
     ok("UPGRADE: migration ran (6 sold burns -> pool sales), no data lost",up.evaluate("D.uling_sales.length")==6 and abs(KU['char']['ulingSales']-18693)<.01 and any(r['source']=='Phone batch before upgrade' for r in KU['rows']) and abs(KU['raw']-30366)<.01)
-    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.4.0 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.4.0");uc.close()
+    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.4.1 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.4.1");uc.close()
   finally:srv.terminate();srv.wait()
   # ================= v1.4.0 Lifetime tab (example items are TEST-ONLY) =================
   lc=b.new_context(viewport={"width":390,"height":844},device_scale_factor=2,is_mobile=True,has_touch=True);lp=lc.new_page();lerr=[];lp.on("pageerror",lambda e:lerr.append(str(e)))
@@ -212,6 +212,8 @@ with sync_playwright() as p:
   ok("v1.4 Lifetime tab empty: no NaN, all-in = operating, empty message","NaN" not in lt and "undefined" not in lt and lp.locator("#lifeempty").count()==1 and K0['life']['allIn']==K0['life']['opCost'] and lp.inner_text("#lavg")=="₱40.70" and lp.inner_text("#lbe")=="₱38.00")
   ok("v1.4 existing dashboard numbers unchanged with no lifetime items",abs(K0['copraNet']-36856.66)<.01 and abs(K0['combined']-55549.66)<.01 and K0['bid']['be']==10.15 and K0['bid']['good']==9.65)
   lp.screenshot(path="screenshots/40-lifetime-empty-v140.png",full_page=True)
+  ok("v1.4.1 two best prices (no lifetime items): operating ₱40.00 == all-in ₱40.00, both verdicts above ₱4.00","₱40.00" in lp.inner_text("#lbestop") and "₱40.00" in lp.inner_text("#lbest") and K0['life']['bestOp']==K0['life']['best']==40.0 and "above" in lp.inner_text("#lverdictop") and "₱4.00/kg" in lp.inner_text("#lverdictall"))
+  lp.evaluate("document.getElementById('lbestbox').scrollIntoView({block:'center'})");lp.wait_for_timeout(150);lp.screenshot(path="screenshots/50-best-price-two-empty-v141.png")
   def addL(name,kind,amt,paid=""):
     lp.fill("#l_name",name);lp.select_option("#l_kind",kind);lp.fill("#l_amt",str(amt));lp.select_option("#l_paid",paid);lp.fill("#l_note","EXAMPLE data (test only)");lp.fill("#l_date","2026-08-18");lp.click("#l_save");lp.wait_for_timeout(250)
   addL("Too big","capital",10000001);ok("v1.4 form cap: amount over 10,000,000 refused","10,000,000" in lp.inner_text("#l_err") and lp.evaluate("window.__K.life.total")==0)
@@ -227,6 +229,8 @@ with sync_playwright() as p:
   ok("v1.4 totals: capital ₱97,000 / lifetime exp ₱8,000 / total ₱105,000",lp.inner_text("#lcap")=="₱97,000.00" and lp.inner_text("#lone")=="₱8,000.00" and lp.inner_text("#ltot")=="₱105,000.00")
   ok("v1.4 verdict + recovery + payback shown","below" in lp.inner_text("#lverdict") and "₱11.23/kg" in lp.inner_text("#lverdict") and lp.inner_text("#lrec")=="52.9%" and lp.inner_text("#ltodo")=="₱49,450.34" and "15 more batches" in lp.inner_text("#lpay"))
   ok("v1.4 no NaN with items; fits phone width","NaN" not in lt and lp.evaluate("document.documentElement.scrollWidth")<=390)
+  ok("v1.4.1 two best prices with EXAMPLE items: operating ₱40.00 (above ₱4.00), all-in ₱55.23 (below ₱11.23)","Operating-only best price" in lp.inner_text("#lbestop") and "₱40.00" in lp.inner_text("#lbestop") and "All-in best price (with lifetime costs)" in lp.inner_text("#lbest") and L['bestOp']==40.0 and L['diffOp']==4.0 and "above" in lp.inner_text("#lverdictop") and "₱4.00/kg" in lp.inner_text("#lverdictop") and "below" in lp.inner_text("#lverdictall"))
+  lp.evaluate("document.getElementById('lbestbox').scrollIntoView({block:'center'})");lp.evaluate("document.querySelector('#lbestbox .t').textContent='💰 BEST PRICE TO SELL COPRA (EXAMPLE test data)'");lp.wait_for_timeout(150);lp.screenshot(path="screenshots/51-best-price-two-example-v141.png")
   lp.screenshot(path="screenshots/41-lifetime-with-items-v140.png",full_page=True);lp.evaluate("window.scrollTo(0,0)");lp.wait_for_timeout(200);lp.screenshot(path="screenshots/41b-lifetime-top-v140.png")
   K1=lp.evaluate("window.__K");ok("v1.4 lifetime items do not change daily expenses / dashboard numbers (switch OFF)",K1['totalExp']==K0['totalExp'] and K1['copraNet']==K0['copraNet'] and K1['bid']['be']==10.15)
   lp.click("nav button[data-v=home]");lp.wait_for_timeout(300);ok("v1.4 dashboard lifetime card","₱53.23" in lp.inner_text("#lifesum") and "₱55.23" in lp.inner_text("#lifesum"))

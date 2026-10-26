@@ -85,17 +85,21 @@ const PAID=()=>({p1:S().partners[0],p2:S().partners[1],shared:'Shared 50/50'});
 const pr=n=>n==null?'—':P(n);
 function lifeSummary(){const L=K.life;return `<div class="card" id="lifesum"><h2>Lifetime (all-in) 🏗️</h2><p class="sub">Includes capital + lifetime expenses (${P0(L.total)}). Details in the 🏗️ Lifetime tab.</p>
  <div class="kv"><span>Average cost / kg copra (all-in)</span><b>${pr(L.avgAll)}</b></div><div class="kv"><span>Break-even selling price (all-in)</span><b>${pr(L.beAll)}</b></div>
- <div class="kv"><span>Best price to sell copra</span><b>${pr(L.best)}</b></div></div>`}
+ <div class="kv"><span>Best price to sell copra (operating only)</span><b>${pr(L.bestOp)}</b></div><div class="kv"><span>Best price to sell copra (all-in)</span><b>${pr(L.best)}</b></div></div>`}
 function renderLife(){const L=K.life,s=S(),e=lifeEd||{},pb=PAID(),items=live('lifetime_items').sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+ const vd=(b,d,lbl)=>b==null||d==null?'':d>=0?`✅ Today's price ${P(L.price)} is <b>above</b> the ${lbl} by <b>${P(d)}/kg</b>.`:`⚠️ Today's price ${P(L.price)} is <b>below</b> the ${lbl} by <b>${P(-d)}/kg</b>.`;
  const verdict=L.best==null?'Add a batch with its dried copra kg first, then your best price shows here.':
-  L.diff>=0?`✅ Selling at today's price ${P(L.price)} is <b>above</b> your best price by <b>${P(L.diff)}/kg</b>.`:`⚠️ Selling at today's price ${P(L.price)} is <b>below</b> your best price by <b>${P(-L.diff)}/kg</b>.`;
+  `<div id="lverdictop">${vd(L.bestOp,L.diffOp,'operating-only best price')}</div><div id="lverdictall">${vd(L.best,L.diff,'all-in best price')}</div>`;
  $('#v-life').innerHTML=`<div class="card" id="lifekpi" style="border:2px solid var(--g)"><h2>Lifetime numbers 🏗️</h2><p class="sub">From day one up to today. Revenue counts only copra <b>already sold</b> + uling sold. Unsold copra is not counted as income.</p>
  <div class="kpis"><div class="kpi"><div class="l">Operating cost to date</div><div class="v">${P0(L.opCost)}</div><div class="s">buying + all gastos</div></div>
   <div class="kpi"><div class="l">All-in cost to date</div><div class="v">${P0(L.allIn)}</div><div class="s">operating + lifetime ${P0(L.total)}</div></div>
   <div class="kpi"><div class="l">Average cost / kg copra</div><div class="v" id="lavg">${pr(L.avgAll)}</div><div class="s">all-in · operating only ${pr(L.avgOp)}</div></div>
   <div class="kpi"><div class="l">Break-even selling price</div><div class="v" id="lbe">${pr(L.beAll)}</div><div class="s">all-in · operating only ${pr(L.beOp)}</div></div></div>
  <p class="sub">Average cost = total cost ÷ ${N(L.copra,1)} kg copra made (uling income <b>not</b> subtracted). Break-even = (total cost − uling sold ${P0(L.ulingSales)}) ÷ kg copra made: the price you need on every kg to get all your money back.</p>
- <div class="box tot" id="lbest"><div class="t">💰 BEST PRICE TO SELL COPRA</div><div class="p">${pr(L.best)}</div><div class="d">Break-even (all-in) + your target ${P(L.margin)}/kg (change in Settings)</div></div>
+ <div class="box tot" id="lbestbox"><div class="t">💰 BEST PRICE TO SELL COPRA</div><div style="display:flex;gap:8px;margin-top:6px">
+  <div style="flex:1;min-width:0" id="lbestop"><div class="d"><b>Operating-only best price</b></div><div class="p">${pr(L.bestOp)}</div><div class="d">For day-to-day selling: operating break-even ${pr(L.beOp)} + ${P(L.margin)}</div></div>
+  <div style="flex:1;min-width:0" id="lbest"><div class="d"><b>All-in best price (with lifetime costs)</b></div><div class="p">${pr(L.best)}</div><div class="d">All-in break-even ${pr(L.beAll)} + ${P(L.margin)}</div></div></div>
+  <div class="d">Target margin ${P(L.margin)}/kg (change in Settings)</div></div>
  <div class="note" id="lverdict">${verdict}</div>
  <div class="kv"><span>Capital recovered</span><b id="lrec">${L.recPct==null?'— (no lifetime items yet)':(L.recPct*100).toFixed(1)+'%'}</b></div>
  <div class="kv"><span>Still to recover</span><b id="ltodo">${P(L.toRecover)}</b></div>

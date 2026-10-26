@@ -1,4 +1,4 @@
-# Kopra Ko: offline copra + uling tracker (PWA) v1.4.0
+# Kopra Ko: offline copra + uling tracker (PWA) v1.4.1
 Run locally: `python3 -m http.server 8765` → http://127.0.0.1:8765 (the service worker needs http/https).
 Tests:
 - `node --test tests/` (calc, store, validation, sync against a mock that mirrors the DB trigger)
@@ -33,6 +33,11 @@ Backup import is checked strictly: types, required fields, negatives, caps, vali
   - Projected profit = copra value − buy cost − every bill linked to the batch, so bills lower it as they are logged.
   - Once actual copra is entered, the projection becomes a variance figure. Accuracy is back-tested: each finished batch is projected only from the batches before it, and the average miss % plus how many landed inside the range are shown on the dashboard.
 - **Migration from v1.2 phones:** IndexedDB goes to version 2 (this only adds the `uling_sales` store). A one-time data step turns each v1.2 burn marked "sold" into status "done" plus one pool sale with the same kg and price. Nothing is deleted, and the step is safe to run twice. Importing a v1.2 backup applies the same step.
+
+## v1.4.1: two best prices
+- Lifetime tab "BEST PRICE TO SELL COPRA" now shows two prices side by side: **Operating-only best price** (operating break-even + target margin, for day-to-day selling) and **All-in best price (with lifetime costs)** (unchanged). The verdict compares today's Settings price to each. Dashboard card shows both.
+- calc.js `lifetime()` adds `bestOp` and `diffOp` (rounded up to the centavo; null → "—" with no data). Existing fields unchanged. No DB/schema change.
+- Worked example: 10 seed batches, no lifetime items → bestOp = best = ₱40.00; with the test EXAMPLE items → bestOp ₱40.00 (38.00 + 2, ₱4.00 above ₱44), best ₱55.23.
 
 ## v1.4.0: Lifetime tab (capital + lifetime expenses)
 - New 🏗️ **Lifetime** tab, separate from daily 🧾 Gastos (daily expense entry is unchanged). Each item has a date, a name, a type (**Capital**: equipment, drying racks, tarps, kiln, truck/tools, materials; or **Lifetime expense**: BIR, business permit, licenses, one-off setup), an amount, an optional note, and an optional "paid by". You can add, edit and delete (soft delete) items. The tab shows totals for capital, lifetime expenses and both combined.

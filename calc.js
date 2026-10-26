@@ -96,6 +96,7 @@ function compute(db,today){
 //  avg cost/kg    = cost / copra kg produced (gross: uling revenue NOT subtracted, same as the existing cost/kg copra)
 //  break-even/kg  = (cost - uling sales) / copra kg produced  (uling revenue IS netted: price needed on every kg made so far)
 //  best price/kg  = all-in break-even + target lifetime margin (Settings, default PHP 2)
+//  bestOp/kg      = operating-only break-even + same margin (v1.4.1, for day-to-day selling)
 const LIFE={margin:2,recentN:5};
 const up2=n=>n==null?null:Math.ceil(n*100-1e-9)/100; // sell-side prices round UP (never shows a price that loses money)
 function lifetime(a){const{rows,copra,buyTotal,sales,expenses,ulingSales,lifeCap,lifeOne,lifeTotal,s}=a;
@@ -103,12 +104,13 @@ function lifetime(a){const{rows,copra,buyTotal,sales,expenses,ulingSales,lifeCap
   const per=v=>copra>0?v/copra:null,margin=num(s.lifeMargin)?s.lifeMargin:LIFE.margin;
   const avgOp=per(opCost),avgAll=per(allIn),beOp=up2(per(opCost-ulingSales)),beAll=up2(per(allIn-ulingSales));
   const best=beAll==null?null:up2(beAll+margin),diff=best==null?null:r2(s.copraPrice-best);
+  const bestOp=beOp==null?null:up2(beOp+margin),diffOp=bestOp==null?null:r2(s.copraPrice-bestOp); // v1.4.1 operating-only best price (day-to-day selling)
   const opProfit=revenue-opCost,recovered=lifeTotal>0?Math.min(lifeTotal,Math.max(0,opProfit)):0;
   const toRecover=Math.max(0,allIn-revenue),recPct=lifeTotal>0?recovered/lifeTotal:null;
   const recent=rows.filter(r=>r.status==='sold'&&!r.pending).slice(-LIFE.recentN),perBatch=recent.length?sum(recent,r=>r.net)/recent.length:null;
   const payback=toRecover<=0?0:perBatch>0?Math.ceil(toRecover/perBatch-1e-9):null;
   return {capital:lifeCap,oneOff:lifeOne,total:lifeTotal,allExp,opCost,allIn,revenue,copraSales:sales,ulingSales,copra,avgOp,avgAll,overheadPerKg:per(lifeTotal),
-    beOp,beAll,margin,best,price:s.copraPrice,diff,opProfit,recovered,recPct,toRecover,perBatch,recentN:recent.length,payback}}
+    beOp,beAll,margin,best,price:s.copraPrice,diff,bestOp,diffOp,opProfit,recovered,recPct,toRecover,perBatch,recentN:recent.length,payback}}
 // Unassigned copra sales (split off when a batch's copra was cut below its sold kg) must each point (from_batch) to a real live
 // batch, and per batch lineage: assigned + unassigned kg <= copra the batch had when split (lineage_copra), never above its raw kg.
 // Shared by backup import AND the in-app save path so the app can never create a state its own importer rejects.
