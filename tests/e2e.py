@@ -141,6 +141,7 @@ with sync_playwright() as p:
   pg.locator("button[data-ed^='batches|']").first.click();pg.fill("#f_raw","2100");save(pg);ok("edit batch updates raw",abs(pg.evaluate("window.__K.raw")-31466)<.01)
   pg.click("nav button[data-v=rec]");pg.locator("button[data-del^='batches|']").first.click();pg.wait_for_timeout(400);K4=pg.evaluate("window.__K")
   ok("delete batch restores seed raw",abs(K4['raw']-29366)<.01);ok("delete cascades its sale/gas",abs(K4['copraNet']-(36856.66-150+600))<.01,str(K4['copraNet']))
+  import tempfile,copy
   # export / import
   pg.click("nav button[data-v=more]")
   with pg.expect_download() as d: pg.click("#bx")
@@ -172,7 +173,7 @@ with sync_playwright() as p:
   ctx.set_offline(True);pg.reload();pg.wait_for_function("window.__K");ok("works offline (SW cache)",pg.evaluate("Object.keys(Chart.instances).length")>=4);ctx.set_offline(False)
   ok("no JS errors",not errs,"; ".join(errs[:3]))
   f=b.new_page(viewport={"width":390,"height":844});f.goto(U+"?sync=1");f.wait_for_function("window.__K");f.click("nav button[data-v=more]");ok("SF sync card shown only with flag",f.locator("#synccard").count()==1)
-  ok("version shown v1.3.2","v1.3.2" in f.inner_text("#v-more"))
+  ok("version shown v1.4.0","v1.4.0" in f.inner_text("#v-more"))
   # v1.2 -> v1.3 IndexedDB migration on a phone with existing data
   m=b.new_context(viewport={"width":390,"height":844});mp=m.new_page();mp.goto(U.replace("index.html","manifest.webmanifest"))
   mp.evaluate("""async()=>{const src=await (await fetch('seed.js')).text();const SEED=new Function(src+';return SEED')();
@@ -198,12 +199,73 @@ with sync_playwright() as p:
     up.evaluate("(async()=>{const r=await store.save('batches',{no:11,source:'Phone batch before upgrade',rawKg:1000,buyTotal:9000,copraKg:0})})()");up.wait_for_timeout(300)
     os.remove(base+"/cur");os.symlink(base+"/new",base+"/cur")   # server now serves v1.3.1
     up.evaluate("navigator.serviceWorker.getRegistration().then(r=>r.update())")
-    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.3.2'",timeout=20000,polling=300)
+    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.4.0'",timeout=20000,polling=300)
     up.reload();up.wait_for_function("window.__K");KU=up.evaluate("window.__K")
-    ok("UPGRADE: SW updated, cache bumped to kopra-1.3.2 (old cache gone), page runs v1.3.2",up.evaluate("self.APP_VERSION")=="1.3.2" and up.evaluate("caches.keys()")==["kopra-1.3.2"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.3.2'\"))"))
+    ok("UPGRADE: SW updated, cache bumped to kopra-1.4.0 (old cache gone), page runs v1.4.0",up.evaluate("self.APP_VERSION")=="1.4.0" and up.evaluate("caches.keys()")==["kopra-1.4.0"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.4.0'\"))"))
     ok("UPGRADE: migration ran (6 sold burns -> pool sales), no data lost",up.evaluate("D.uling_sales.length")==6 and abs(KU['char']['ulingSales']-18693)<.01 and any(r['source']=='Phone batch before upgrade' for r in KU['rows']) and abs(KU['raw']-30366)<.01)
-    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.3.2 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.3.2");uc.close()
+    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.4.0 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.4.0");uc.close()
   finally:srv.terminate();srv.wait()
+  # ================= v1.4.0 Lifetime tab (example items are TEST-ONLY) =================
+  lc=b.new_context(viewport={"width":390,"height":844},device_scale_factor=2,is_mobile=True,has_touch=True);lp=lc.new_page();lerr=[];lp.on("pageerror",lambda e:lerr.append(str(e)))
+  lp.add_init_script("window.__TODAY__='2026-10-11T12:00:00';window.__AUTOCONFIRM__=1");lp.goto(U);lp.wait_for_function("window.__K")
+  K0=lp.evaluate("window.__K");lp.click("nav button[data-v=life]");lp.wait_for_timeout(300);lt=lp.inner_text("#v-life")
+  ok("v1.4 Lifetime tab empty: no NaN, all-in = operating, empty message","NaN" not in lt and "undefined" not in lt and lp.locator("#lifeempty").count()==1 and K0['life']['allIn']==K0['life']['opCost'] and lp.inner_text("#lavg")=="₱40.70" and lp.inner_text("#lbe")=="₱38.00")
+  ok("v1.4 existing dashboard numbers unchanged with no lifetime items",abs(K0['copraNet']-36856.66)<.01 and abs(K0['combined']-55549.66)<.01 and K0['bid']['be']==10.15 and K0['bid']['good']==9.65)
+  lp.screenshot(path="screenshots/40-lifetime-empty-v140.png",full_page=True)
+  def addL(name,kind,amt,paid=""):
+    lp.fill("#l_name",name);lp.select_option("#l_kind",kind);lp.fill("#l_amt",str(amt));lp.select_option("#l_paid",paid);lp.fill("#l_note","EXAMPLE data (test only)");lp.fill("#l_date","2026-08-18");lp.click("#l_save");lp.wait_for_timeout(250)
+  addL("Too big","capital",10000001);ok("v1.4 form cap: amount over 10,000,000 refused","10,000,000" in lp.inner_text("#l_err") and lp.evaluate("window.__K.life.total")==0)
+  lp.fill("#l_name","");lp.fill("#l_amt","100");lp.click("#l_save");lp.wait_for_timeout(200);ok("v1.4 form: name required","Enter a name" in lp.inner_text("#l_err"))
+  lp.screenshot(path="screenshots/43-lifetime-validation-v140.png",full_page=True)
+  for a in [("Drying racks + tarps","capital",12000,"shared"),("Kiln (uling)","capital",25000,"shared"),("Used truck","capital",60000,"p1"),("BIR registration","expense",3500,"shared"),("Business permit","expense",4500,"p2"),("Typo item","capital",999,"")]:addL(*a)
+  tid=lp.evaluate("D.lifetime_items.find(x=>x.name==='Typo item').id");lp.click(f"button[data-ldel='{tid}']");lp.wait_for_timeout(300)
+  ok("v1.4 soft delete excluded from totals",lp.evaluate("D.lifetime_items.find(x=>x.name==='Typo item').deleted")==True and abs(lp.evaluate("window.__K.life.total")-105000)<.01)
+  eid=lp.evaluate("D.lifetime_items.find(x=>x.name==='Drying racks + tarps').id");lp.click(f"button[data-led='{eid}']");lp.fill("#l_amt","12500");lp.click("#l_save");lp.wait_for_timeout(250)
+  ok("v1.4 edit item (12,000 -> 12,500)",abs(lp.evaluate("window.__K.life.capital")-97500)<.01);lp.click(f"button[data-led='{eid}']");lp.fill("#l_amt","12000");lp.click("#l_save");lp.wait_for_timeout(250)
+  L=lp.evaluate("window.__K.life");lt=lp.inner_text("#v-life")
+  ok("v1.4 worked example on screen: avg ₱55.94, break-even ₱53.23, best ₱55.23",lp.inner_text("#lavg")=="₱55.94" and lp.inner_text("#lbe")=="₱53.23" and "₱55.23" in lp.inner_text("#lbest"),str((L['avgAll'],L['beAll'],L['best'])))
+  ok("v1.4 totals: capital ₱97,000 / lifetime exp ₱8,000 / total ₱105,000",lp.inner_text("#lcap")=="₱97,000.00" and lp.inner_text("#lone")=="₱8,000.00" and lp.inner_text("#ltot")=="₱105,000.00")
+  ok("v1.4 verdict + recovery + payback shown","below" in lp.inner_text("#lverdict") and "₱11.23/kg" in lp.inner_text("#lverdict") and lp.inner_text("#lrec")=="52.9%" and lp.inner_text("#ltodo")=="₱49,450.34" and "15 more batches" in lp.inner_text("#lpay"))
+  ok("v1.4 no NaN with items; fits phone width","NaN" not in lt and lp.evaluate("document.documentElement.scrollWidth")<=390)
+  lp.screenshot(path="screenshots/41-lifetime-with-items-v140.png",full_page=True);lp.evaluate("window.scrollTo(0,0)");lp.wait_for_timeout(200);lp.screenshot(path="screenshots/41b-lifetime-top-v140.png")
+  K1=lp.evaluate("window.__K");ok("v1.4 lifetime items do not change daily expenses / dashboard numbers (switch OFF)",K1['totalExp']==K0['totalExp'] and K1['copraNet']==K0['copraNet'] and K1['bid']['be']==10.15)
+  lp.click("nav button[data-v=home]");lp.wait_for_timeout(300);ok("v1.4 dashboard lifetime card","₱53.23" in lp.inner_text("#lifesum") and "₱55.23" in lp.inner_text("#lifesum"))
+  lp.locator("#lifesum").screenshot(path="screenshots/44-dashboard-lifetime-card-v140.png")
+  lp.click("nav button[data-v=more]");ok("v1.4 settings: switch default OFF, margin default 2",not lp.is_checked("#s_lb") and lp.input_value("#s_lm")=="2")
+  lp.fill("#s_lm","25");lp.click("#ss");ok("v1.4 settings: lifetime margin 25 refused","₱20" in lp.inner_text("#s_err"))
+  lp.fill("#s_lm","2");lp.check("#s_lb");lp.click("#ss");lp.wait_for_timeout(300);KB=lp.evaluate("window.__K.bid")
+  ok("v1.4 switch ON lowers bid by lifetime ÷ raw kg (₱10.15 -> ₱6.58)",KB['lifeOn'] and KB['be']==6.58 and KB['good']==6.08)
+  lp.screenshot(path="screenshots/45-settings-lifetime-v140.png",full_page=True)
+  lp.click("nav button[data-v=home]");lp.wait_for_timeout(300);ok("v1.4 bid guide explains lifetime deduction","₱3.58/kg raw" in lp.inner_text("#bidlife") and "₱6.58" in lp.inner_text("#bidguide"))
+  lp.locator("#bidguide").screenshot(path="screenshots/46-bidguide-lifetime-on-v140.png")
+  lp.click("nav button[data-v=more]");lp.uncheck("#s_lb");lp.click("#ss");lp.wait_for_timeout(300);ok("v1.4 switch OFF restores ₱10.15",lp.evaluate("window.__K.bid.be")==10.15)
+  # backup round trip with lifetime items
+  with lp.expect_download() as d: lp.click("#bx")
+  lbk=d.value.path();ldata=json.load(open(lbk));ok("v1.4 export JSON has lifetime_items",len([x for x in ldata.get("lifetime_items",[]) if not x.get("deleted")])==5)
+  with lp.expect_download() as d2: lp.click("#bc")
+  ok("v1.4 export CSV has lifetime section","# lifetime items" in open(d2.value.path()).read())
+  lp.click("#br");lp.wait_for_timeout(500);ok("v1.4 Reset to starting data clears lifetime items",lp.evaluate("window.__K.life.total")==0 and lp.evaluate("D.lifetime_items.filter(x=>!x.deleted).length")==0)
+  lp.set_input_files("#bi",lbk);lp.wait_for_timeout(700);L2=lp.evaluate("window.__K.life")
+  ok("v1.4 import restores lifetime items (round trip)",abs(L2['total']-105000)<.01 and L2['beAll']==53.23 and L2['best']==55.23)
+  bad=copy.deepcopy(ldata);next(x for x in bad["lifetime_items"] if not x.get("deleted"))["amount"]=-500;bp2=tempfile.mktemp(suffix=".json");json.dump(bad,open(bp2,"w"))
+  lp.set_input_files("#bi",bp2);lp.wait_for_function("document.querySelector('#bierr').textContent.includes('lifetime_items')",timeout=5000)
+  ok("v1.4 import rejects bad lifetime row, data unchanged","Amount must be more than 0" in lp.inner_text("#bierr") and abs(lp.evaluate("window.__K.life.total")-105000)<.01)
+  bad=copy.deepcopy(ldata);next(x for x in bad["lifetime_items"] if not x.get("deleted"))["kind"]="daily";json.dump(bad,open(bp2,"w"));lp.evaluate("document.querySelector('#bierr').textContent=''")
+  lp.set_input_files("#bi",bp2);lp.wait_for_function("document.querySelector('#bierr').textContent.includes('lifetime_items')",timeout=5000);ok("v1.4 import rejects unknown kind",abs(lp.evaluate("window.__K.life.total")-105000)<.01)
+  lc.set_offline(True);lp.reload();lp.wait_for_function("window.__K");lp.click("nav button[data-v=life]");ok("v1.4 Lifetime tab works offline with data",abs(lp.evaluate("window.__K.life.total")-105000)<.01 and lp.inner_text("#lbe")=="₱53.23");lc.set_offline(False)
+  ok("v1.4 no JS errors on Lifetime flows",not lerr,"; ".join(lerr[:3]));lc.close()
+  # v1.3.2 -> v1.4.0 IndexedDB migration: a phone with a version-2 DB (no lifetime_items store) keeps everything
+  m=b.new_context(viewport={"width":390,"height":844});mp=m.new_page();mp.add_init_script("window.__TODAY__='2026-10-11T12:00:00'");mp.goto(U.replace("index.html","manifest.webmanifest"))
+  mp.evaluate("""async()=>{const src=await (await fetch('seed.js')).text();const SEED=new Function(src+';return SEED')();
+    const db=await new Promise((res,rej)=>{const q=indexedDB.open('kopra',2);q.onupgradeneeded=()=>['settings','batches','sales','expenses','charcoal','uling_sales','meta'].forEach(t=>q.result.createObjectStore(t,{keyPath:'id'}));q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});
+    const put=(t,rs)=>new Promise(r=>{const x=db.transaction(t,'readwrite');rs.forEach(v=>x.objectStore(t).put(v));x.oncomplete=r});
+    await put('settings',SEED.settings);await put('batches',SEED.batches.concat([{id:'v132-batch',no:11,source:'Phone data v1.3.2',rawKg:1000,buyTotal:9000,copraKg:0,deleted:false,synced:false}]));
+    await put('sales',SEED.sales);await put('expenses',SEED.expenses);await put('charcoal',SEED.charcoal);await put('uling_sales',SEED.uling_sales);
+    await put('meta',[{id:'seeded',at:'x'},{id:'mig13',v:true},{id:'device',v:'AB'}]);db.close()}""")
+  mp.goto(U);mp.wait_for_function("window.__K");KM=mp.evaluate("window.__K")
+  ok("v1.4 MIGRATION v1.3.2 (IDB v2) -> v1.4.0 (IDB v3): all data kept, lifetime store added",mp.evaluate("indexedDB.databases().then(d=>d.find(x=>x.name==='kopra').version)")==3 and any(r['source']=='Phone data v1.3.2' for r in KM['rows']) and abs(KM['raw']-30366)<.01 and abs(KM['char']['ulingSales']-18693)<.01 and len(mp.evaluate("D.uling_sales"))==6 and KM['life']['total']==0 and mp.evaluate("window.__migrated")==0)
+  mp.click("nav button[data-v=life]");mp.fill("#l_name","Tarps");mp.fill("#l_amt","1000");mp.click("#l_save");mp.wait_for_timeout(300);mp.reload();mp.wait_for_function("window.__K")
+  ok("v1.4 MIGRATION: lifetime item saved after upgrade persists",mp.evaluate("window.__K.life.total")==1000);m.close()
   # desktop
   d=b.new_page(viewport={"width":1366,"height":900});d.add_init_script("window.__TODAY__='2026-10-11T12:00:00'");d.goto(U);d.wait_for_function("window.__K");d.wait_for_timeout(600);d.screenshot(path="screenshots/12-dashboard-desktop.png",full_page=True)
   b.close()

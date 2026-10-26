@@ -1,11 +1,11 @@
 // Offline-first store. IndexedDB in browser, in-memory adapter for node tests.
 // Every record: id (uuid), updated_at (ISO), deleted (soft delete), synced (bool).
 (function(root){
-const TABLES=['settings','batches','sales','expenses','charcoal','uling_sales'];
-const DB_VERSION=2; // v1.2 used 1; v2 adds the uling_sales store (onupgradeneeded only ADDS stores, never deletes)
+const TABLES=['settings','batches','sales','expenses','charcoal','uling_sales','lifetime_items'];
+const DB_VERSION=3; // v1.2 used 1; v2 adds uling_sales; v3 (app v1.4) adds lifetime_items (onupgradeneeded only ADDS missing stores, never deletes)
 // Only these fields are ever kept from a backup file (anything else is dropped).
-const FIELDS={settings:['id','startDate','copraPrice','targetMargin','bagolRatio','ulingPrice','partners','budget'],batches:['id','no','dev','date','source','rawKg','buyTotal','asarez','copraKg'],
-  sales:['id','batch_id','from_batch','lineage_copra','date','kg','price','buyer'],expenses:['id','batch_id','date','category','amount','note'],charcoal:['id','no','dev','date','bagolKg','ulingKg','price','status','buyer'],uling_sales:['id','date','kg','price','buyer','from_burn'],
+const FIELDS={settings:['id','startDate','copraPrice','targetMargin','bagolRatio','ulingPrice','partners','budget','lifeMargin','lifeInBid'],batches:['id','no','dev','date','source','rawKg','buyTotal','asarez','copraKg'],
+  sales:['id','batch_id','from_batch','lineage_copra','date','kg','price','buyer'],expenses:['id','batch_id','date','category','amount','note'],charcoal:['id','no','dev','date','bagolKg','ulingKg','price','status','buyer'],uling_sales:['id','date','kg','price','buyer','from_burn'],lifetime_items:['id','date','name','kind','amount','note','paidBy'],
   common:['updated_at','deleted','seq']};
 const pick=(t,r)=>{const o={};FIELDS[t].concat(FIELDS.common).forEach(k=>{if(r[k]!==undefined)o[k]=r[k]});return o};
 const getCalc=()=>typeof Calc!=='undefined'?Calc:require('./calc.js');

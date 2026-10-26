@@ -106,7 +106,7 @@ test('FIX4 sw never caches Supabase/API/cross-origin; cache name embedded in sw.
   const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');vm.runInNewContext(src+';this.isApi=isApi;this.V=V',ctx);const u=x=>new URL(x);
   assert.ok(ctx.isApi(u('https://abc.supabase.co/rest/v1/batches')));assert.ok(ctx.isApi(u('https://copra.johnnybodegas.com/auth/v1/token')));assert.ok(ctx.isApi(u('https://cdn.example.com/x.js')));
   assert.ok(!ctx.isApi(u('https://copra.johnnybodegas.com/app.js')));const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];
-  assert.equal(ver,'1.3.2');assert.equal(ctx.V,'kopra-'+ver)});
+  assert.equal(ver,'1.4.0');assert.equal(ctx.V,'kopra-'+ver)});
 test('v1.3.1 BLOCKER1 sw.js embeds the release version (bytes change every release), no importScripts, cache:reload',()=>{const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');
   const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];assert.ok(src.includes(`const SW_VERSION='${ver}'`));assert.ok(!/importScripts/.test(src));assert.ok(src.includes("cache:'reload'"))});
 test('SF CNAME + README signup note',()=>{assert.equal(fs.readFileSync(path.join(ROOT,'CNAME'),'utf8').trim(),'copra.johnnybodegas.com');assert.match(fs.readFileSync(path.join(ROOT,'README.md'),'utf8'),/disable.*sign.?ups/i)});
@@ -188,7 +188,7 @@ test('v1.3 FIX4 actual replaces projection: variance + accuracy (backtest uses o
 test('v1.3 unchanged seeded totals + bid guide',()=>{const k=Calc.compute(SEED,TODAY);near(k.copraNet,36856.66);near(k.combined,55549.66);assert.equal(k.bid.be,10.15);assert.equal(k.bid.good,9.65);near(k.realized,36856.66)});
 test('v1.3 backup: uling_sales validated (caps, oversell of pool)',()=>{const o=clone(SEED);o.uling_sales[0].price=999;assert.ok(Calc.validateBackup(o).some(e=>/uling_sales\[0\]/.test(e)));
   const o2=clone(SEED);o2.uling_sales.push({id:'zz',kg:5000,price:31});assert.ok(Calc.validateBackup(o2).some(e=>/more than uling made/.test(e)))});
-test('v1.3 sync tables + schema include uling_sales',()=>{assert.ok(DB.TABLES.includes('uling_sales'));assert.ok(fs.readFileSync(path.join(ROOT,'supabase/schema.sql'),'utf8').includes("'charcoal','uling_sales'"));assert.equal(DB.DB_VERSION,2)});
+test('v1.3 sync tables + schema include uling_sales',()=>{assert.ok(DB.TABLES.includes('uling_sales'));assert.ok(fs.readFileSync(path.join(ROOT,'supabase/schema.sql'),'utf8').includes("'charcoal','uling_sales'"));assert.ok(DB.DB_VERSION>=2)});
 // ================= v1.3.1 =================
 test('v1.3.1 SF projection range drops min+max yield when n>=5, full range when n<5',()=>{const d=clone(SEED);d.batches[0].copraKg=900;d.sales[0].kg=900; // outlier: batch 1 yield 87.6%
   d.batches.push({id:'n',no:11,rawKg:1000,buyTotal:9000,copraKg:0,deleted:false});const r=row(d,11),ys0=d.batches.filter(b=>b.copraKg).map(b=>b.copraKg/b.rawKg).sort((a,b)=>a-b);assert.ok(r.proj.high/1000<0.3,`outlier ignored, high ${r.proj.high}`);near(r.proj.high,1000*ys0[ys0.length-2],1e-6);near(r.proj.low,1000*ys0[1],1e-6);

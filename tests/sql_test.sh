@@ -9,6 +9,7 @@ create function auth.uid() returns uuid language sql stable as $$ select nullif(
 grant usage on schema public, auth to authenticated, anon;grant execute on function auth.uid() to authenticated;
 SQL
 Q -f supabase/schema.sql >/dev/null 2>&1; Q -f supabase/schema.sql >/dev/null 2>&1   # run twice: must be idempotent
+Q -f supabase/migration_v140_lifetime.sql >/dev/null; Q -f supabase/migration_v140_lifetime.sql >/dev/null   # v1.4.0, also idempotent
 Q <<'SQL'
 insert into auth.users values ('00000000-0000-0000-0000-00000000000a','j@x'),('00000000-0000-0000-0000-00000000000b','b@x'),('00000000-0000-0000-0000-00000000000c','eve@x');
 insert into teams(id,name) values ('11111111-1111-1111-1111-111111111111','JB'),('22222222-2222-2222-2222-222222222222','Other');
@@ -52,4 +53,16 @@ ok "v1.3 uling_sales outsider blocked (RLS)" "$(AS $E "select count(*) from ulin
 ok "v1.3 uling_sales price cap" "$(AE $J "insert into uling_sales(id,team_id,kg,price) values (gen_random_uuid(),'$T',1,500)" | grep -c 'check constraint')" "1"
 ok "v1.3 uling_sales gets server seq" "$(Q -c "select count(*) from uling_sales where seq is not null")" "1"
 ok "v1.3.1 sales.from_batch stored for unassigned sale" "$(AS $J "insert into sales(id,team_id,batch_id,from_batch,kg,price) values (gen_random_uuid(),'$T',null,gen_random_uuid(),6,44) returning (from_batch is not null)")" "t"
+LI(){ echo "insert into lifetime_items(id,team_id,name,kind,amount) values (gen_random_uuid(),'$T','$1','$2',$3) returning amount"; }
+ok "v1.4 lifetime_items insert by member" "$(AS $J "$(LI 'Drying tarps' capital 12000)")" "12000"
+ok "v1.4 lifetime_items gets server seq + updated_at" "$(Q -c "select count(*) from lifetime_items where seq is not null and updated_at is not null")" "1"
+ok "v1.4 lifetime_items outsider blocked (RLS read)" "$(AS $E "select count(*) from lifetime_items")" "0"
+ok "v1.4 lifetime_items outsider insert blocked (RLS)" "$(AE $E "$(LI x capital 1)" | grep -c 'row-level security')" "1"
+ok "v1.4 lifetime_items anon denied" "$(Q -c "set role anon; select count(*) from lifetime_items" 2>&1 | grep -c 'permission denied')" "1"
+ok "v1.4 cap: amount 10,000,001 rejected" "$(AE $J "$(LI big capital 10000001)" | grep -c 'check constraint')" "1"
+ok "v1.4 cap: amount 0 rejected" "$(AE $J "$(LI zero capital 0)" | grep -c 'check constraint')" "1"
+ok "v1.4 bad kind rejected" "$(AE $J "$(LI x daily 5)" | grep -c 'check constraint')" "1"
+ok "v1.4 name over 120 chars rejected" "$(AE $J "$(LI $(printf 'a%.0s' {1..121}) capital 5)" | grep -c 'check constraint')" "1"
+ok "v1.4 hard delete blocked" "$(AE $J "delete from lifetime_items" | grep -c 'permission denied')" "1"
+ok "v1.4 settings lifeMargin cap 25 rejected" "$(AE $J "insert into settings(id,team_id,\"lifeMargin\") values (gen_random_uuid(),'$T',25)" | grep -c 'check constraint')" "1"
 echo "SQL: $pass passed, $fail failed";[ $fail -eq 0 ]
