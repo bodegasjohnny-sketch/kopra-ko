@@ -146,7 +146,7 @@ function renderForm(){const e=editing||{},s=S();let h='';
  if($('#f_st'))$('#f_st').onclick=ev=>{const b=ev.target.closest('button');if(!b)return;$('#f_st').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));const r=K.rows.find(r=>r.id===$('#f_batch').value);
   if(b.dataset.s==='all'&&r)$('#f_kg').value=r.onHand+(editing?+editing.kg:0);if(b.dataset.s==='none')$('#f_kg').value=0;autoCalc()};
  if(form==='sale'&&!e.id){const r=K.rows.find(r=>r.id===$('#f_batch').value);if(r)$('#f_kg').value=r.onHand}
- $('#formcard').oninput=autoCalc;$('#formcard').onchange=autoCalc;autoCalc();
+ $('#formcard').oninput=ev=>{if(form==='char'&&ev.target.id==='f_uling'&&+ev.target.value>0)$('#f_status').value='done';autoCalc()};$('#formcard').onchange=autoCalc;autoCalc();
 }
 function autoCalc(){const a=$('#f_auto');if(!a)return;const v=id=>+($(id)?.value||0);
  if(form==='buy'){const tot=v('#f_raw')*v('#f_buy'),y=v('#f_raw')&&v('#f_copra')?v('#f_copra')/v('#f_raw'):null,s=S();
@@ -155,7 +155,7 @@ function autoCalc(){const a=$('#f_auto');if(!a)return;const v=id=>+($(id)?.value
   const projH=pj?`<div id="f_proj" style="margin-top:6px"><b>📈 Projection</b> (yield ${pc(pj.yield)}): copra <b>${N(pj.copra)} kg</b> (${N(pj.low)}–${N(pj.high)}) ≈ <b>${P0(pj.value)}</b> at ${P(s.copraPrice)} · uling ≈ ${N(pj.uling)} kg ≈ ${P0(pj.ulingValue)} · <b>profit after bills ${P0(pj.profit)}</b> (${P0(pj.profitLow)} to ${P0(pj.profitHigh)})${y?`<br>Actual copra ${N(v('#f_copra'),1)} kg vs projected ${N(pj.copra)} kg: <b>${((v('#f_copra')-pj.copra)/pj.copra*100).toFixed(1)}%</b>`:''}</div>`:'';
   a.innerHTML=`<span class="tag">AUTO</span> Total price <b>${P(tot)}</b>${y?` · yield <b>${pc(y)}</b> · copra value at ${P(S().copraPrice)}: <b>${P(v('#f_copra')*S().copraPrice)}</b>`:''}${projH}${!K.bid.hasData?'':v('#f_buy')>K.bid.be?'<br>⚠️ Above break-even '+P(K.bid.be)+' — lugi!':v('#f_buy')>K.bid.good?'<br>Between good bid and break-even — thin margin.':v('#f_buy')?'<br>✅ At or under good bid.':''}`}
  if(form==='sale'){const r=K.rows.find(r=>r.id===$('#f_batch').value);if(!r)return;const avail=r.onHand+(editing&&editing.batch_id===r.id?+editing.kg:0),kg=v('#f_kg');a.innerHTML=`<span class="tag">AUTO</span> Sale total <b>${P(kg*v('#f_price'))}</b> · on hand after: <b>${N(Math.max(0,avail-kg),1)} kg</b>${kg>avail+1e-9?'<br>⚠️ More than on hand ('+N(avail,1)+' kg)':''}`}
- if(form==='char'){const y=v('#f_bagol')?v('#f_uling')/v('#f_bagol'):0;a.innerHTML=`<span class="tag">AUTO</span> Yield <b>${pc(y)}</b> · adds ${N(v('#f_uling'))} kg to the pool ≈ ${P0(v('#f_uling')*S().ulingPrice)}`}
+ if(form==='char'){const y=v('#f_bagol')?v('#f_uling')/v('#f_bagol'):0,burning=$('#f_status').value==='burning';a.innerHTML=burning?`<span class="tag">AUTO</span> 🔥 In kiln — <b>nothing added to the uling pool yet</b>. When the burn is finished, enter uling kg (status switches to Done).`:`<span class="tag">AUTO</span> Yield <b>${pc(y)}</b> · adds ${N(v('#f_uling'))} kg to the pool ≈ ${P0(v('#f_uling')*S().ulingPrice)}`}
  if(form==='usale'){const avail=K.char.ulingOnHand+(editing&&editing.id?+editing.kg:0),kg=v('#f_kg');a.innerHTML=`<span class="tag">AUTO</span> Sale total <b>${P(kg*v('#f_price'))}</b> · pool after: <b>${N(Math.max(0,avail-kg),1)} kg</b>`}}
 const numv=id=>{const x=$(id).value.trim();return x===''?null:+x};
 async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved ✓';
@@ -185,6 +185,7 @@ async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved �
    const rec={date:v('#f_date')||null,kg:numv('#f_kg'),price:numv('#f_price')};if(!chk('sale',rec,{onHand:avail}))return;
    await store.save('sales',{...e,batch_id:r.id,date:rec.date,kg:rec.kg,price:rec.price,buyer:v('#f_buyer')});msg='Sale saved ✓';const rr=Calc.compute(await store.snapshot(),today()).rows.find(x=>x.id===r.id);if(rr&&rr.status==='sold')msg+=' · batch '+bl(r)+' Complete'}}
  if(form==='char'){const rec={date:v('#f_date')||null,bagolKg:numv('#f_bagol'),ulingKg:numv('#f_uling')??0,status:v('#f_status')};if(!chk('char',rec))return;
+  if(rec.status==='burning'&&rec.ulingKg>0)return fail('Uling kg is filled in but Status is still "In kiln (burning)" — uling only goes into the pool when Status is "Done". Change Status to Done, or set uling kg to 0 if it is still burning.');
   const pg=Calc.poolCheck(K,e.id?e:null,rec);if(pg)return fail(pg);
   const no=e.no||Math.max(0,...live('charcoal').map(b=>b.no))+1;const c=await store.save('charcoal',{...e,no,dev:e.id?e.dev:DEV,...rec});msg='Burn '+bl(c)+' saved ✓'}
  if(form==='usale'){const rec={date:v('#f_date')||null,kg:numv('#f_kg'),price:numv('#f_price')};if(!chk('usale',rec,{onHand:K.char.ulingOnHand+(e.id?+e.kg:0)}))return;

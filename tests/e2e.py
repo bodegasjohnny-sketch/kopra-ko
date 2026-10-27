@@ -71,6 +71,13 @@ with sync_playwright() as p:
   ok("FIX2 ₱60 old-batch sale keeps copra price ₱44",be0==44 and pg.evaluate("window.__K.bid.sell")==44)
   ok("FIX2 settings price unchanged",pg.evaluate("S().copraPrice")==44)
   # charcoal + expense
+  # v1.4.2 REGRESSION "uling not saving": uling kg typed but Status left at default 'burning' -> must not silently save outside the pool
+  pg.click("#formseg button[data-f=char]");ok("v1.4.2 new burn defaults to burning",pg.input_value("#f_status")=="burning")
+  pg.fill("#f_bagol","300");pg.fill("#f_uling","96");ok("v1.4.2 typing uling kg auto-switches status to Done",pg.input_value("#f_status")=="done" and "adds 96 kg to the pool" in pg.inner_text("#f_auto"))
+  pg.select_option("#f_status","burning");ok("v1.4.2 burning shows 'nothing added' hint","nothing added to the uling pool yet" in pg.inner_text("#f_auto"))
+  n0=pg.evaluate("D.charcoal.filter(c=>!c.deleted).length");pg.click("#f_save");pg.wait_for_timeout(300)
+  ok("v1.4.2 burning + uling kg rejected with clear message (no silent save)","Change Status to Done" in pg.inner_text("#f_err") and pg.evaluate("D.charcoal.filter(c=>!c.deleted).length")==n0)
+  pg.screenshot(path="screenshots/50-uling-burning-guard-v142.png",full_page=True)
   pg.click("#formseg button[data-f=char]");pg.fill("#f_bagol","300");pg.fill("#f_uling","96");pg.select_option("#f_status","done");pg.screenshot(path="screenshots/06-input-uling.png",full_page=True);save(pg)
   ok("v1.3 burn adds 96 kg to uling pool",abs(pg.evaluate("window.__K.char.ulingOnHand")-96)<.01)
   pg.click("#formseg button[data-f=usale]");pg.fill("#f_kg","200");pg.fill("#f_price","31");pg.click("#f_save");ok("v1.3 uling oversell from pool rejected","only 96 kg in the pool" in pg.inner_text("#f_err"))
@@ -173,7 +180,7 @@ with sync_playwright() as p:
   ctx.set_offline(True);pg.reload();pg.wait_for_function("window.__K");ok("works offline (SW cache)",pg.evaluate("Object.keys(Chart.instances).length")>=4);ctx.set_offline(False)
   ok("no JS errors",not errs,"; ".join(errs[:3]))
   f=b.new_page(viewport={"width":390,"height":844});f.goto(U+"?sync=1");f.wait_for_function("window.__K");f.click("nav button[data-v=more]");ok("SF sync card shown only with flag",f.locator("#synccard").count()==1)
-  ok("version shown v1.4.0","v1.4.1" in f.inner_text("#v-more"))
+  ok("version shown v1.4.0","v1.4.2" in f.inner_text("#v-more"))
   # v1.2 -> v1.3 IndexedDB migration on a phone with existing data
   m=b.new_context(viewport={"width":390,"height":844});mp=m.new_page();mp.goto(U.replace("index.html","manifest.webmanifest"))
   mp.evaluate("""async()=>{const src=await (await fetch('seed.js')).text();const SEED=new Function(src+';return SEED')();
@@ -199,11 +206,11 @@ with sync_playwright() as p:
     up.evaluate("(async()=>{const r=await store.save('batches',{no:11,source:'Phone batch before upgrade',rawKg:1000,buyTotal:9000,copraKg:0})})()");up.wait_for_timeout(300)
     os.remove(base+"/cur");os.symlink(base+"/new",base+"/cur")   # server now serves v1.3.1
     up.evaluate("navigator.serviceWorker.getRegistration().then(r=>r.update())")
-    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.4.1'",timeout=20000,polling=300)
+    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.4.2'",timeout=20000,polling=300)
     up.reload();up.wait_for_function("window.__K");KU=up.evaluate("window.__K")
-    ok("UPGRADE: SW updated, cache bumped to kopra-1.4.1 (old cache gone), page runs v1.4.1",up.evaluate("self.APP_VERSION")=="1.4.1" and up.evaluate("caches.keys()")==["kopra-1.4.1"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.4.1'\"))"))
+    ok("UPGRADE: SW updated, cache bumped to kopra-1.4.2 (old cache gone), page runs v1.4.2",up.evaluate("self.APP_VERSION")=="1.4.2" and up.evaluate("caches.keys()")==["kopra-1.4.2"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.4.2'\"))"))
     ok("UPGRADE: migration ran (6 sold burns -> pool sales), no data lost",up.evaluate("D.uling_sales.length")==6 and abs(KU['char']['ulingSales']-18693)<.01 and any(r['source']=='Phone batch before upgrade' for r in KU['rows']) and abs(KU['raw']-30366)<.01)
-    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.4.1 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.4.1");uc.close()
+    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.4.2 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.4.2");uc.close()
   finally:srv.terminate();srv.wait()
   # ================= v1.4.0 Lifetime tab (example items are TEST-ONLY) =================
   lc=b.new_context(viewport={"width":390,"height":844},device_scale_factor=2,is_mobile=True,has_touch=True);lp=lc.new_page();lerr=[];lp.on("pageerror",lambda e:lerr.append(str(e)))
