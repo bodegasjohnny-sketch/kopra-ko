@@ -33,7 +33,7 @@ with sync_playwright() as p:
   pg.screenshot(path="screenshots/01-dashboard-mobile.png",full_page=True);pg.screenshot(path="screenshots/01b-dashboard-mobile-top.png")
   pg.wait_for_timeout(800);ok("service worker registered",pg.evaluate("navigator.serviceWorker.getRegistrations().then(r=>r.length)")>=1)
   # FIX1 validation UI
-  pg.click("nav button[data-v=add]");pg.fill("#f_raw","1000");pg.fill("#f_buy","9");pg.fill("#f_gas","-50");pg.click("#f_save")
+  pg.click("nav button[data-v=add]");pg.fill("#f_raw","1000");pg.fill("#f_buy","9");pg.evaluate("document.querySelector('#f_more').open=true");pg.fill("#f_gas","-50");pg.click("#f_save")
   ok("FIX1 negative gas rejected (message)","Gas cannot be negative" in pg.inner_text("#f_err") and abs(pg.evaluate("window.__K.raw")-29366)<.01)
   pg.screenshot(path="screenshots/13-validation-negative-gas.png",full_page=True)
   pg.fill("#f_gas","");pg.fill("#f_raw","-5");pg.click("#f_save");ok("FIX1 negative raw kg rejected","Raw kg must be more than 0" in pg.inner_text("#f_err"))
@@ -48,7 +48,7 @@ with sync_playwright() as p:
   pg.click("nav button[data-v=rec]");pg.wait_for_timeout(200);ok("SF HTML in names is escaped",pg.evaluate("!window.__X && !document.querySelector('#v-rec img')"))
   pg.locator("button[data-del^='batches|']").first.click();pg.wait_for_timeout(300);pg.click("nav button[data-v=add]");pg.click("#formseg button[data-f=buy]")
   # add buy batch
-  pg.fill("#f_src","Test farmer");pg.fill("#f_raw","2000");pg.fill("#f_buy","9.50");pg.fill("#f_as","10.5");pg.fill("#f_gas","200");pg.fill("#f_copra","480")
+  pg.fill("#f_src","Test farmer");pg.fill("#f_raw","2000");pg.fill("#f_buy","9.50");pg.evaluate("document.querySelector('#f_more').open=true");pg.fill("#f_as","10.5");pg.fill("#f_gas","200");pg.fill("#f_copra","480")
   pg.screenshot(path="screenshots/02-input-buy.png",full_page=True)
   save(pg);K2=pg.evaluate("window.__K")
   ok("new batch raises raw to 31,366",abs(K2['raw']-31366)<.01);ok("copra on hand 480 (not sold yet)",abs(K2['onHand']-480)<.01)
@@ -87,7 +87,7 @@ with sync_playwright() as p:
   ok("merienda tracked",abs(pg.evaluate("window.__K.meri.spent")-150)<.01)
   # ===== v1.3 flows =====
   # still drying batch + live projection in form
-  pg.click("#formseg button[data-f=buy]");pg.fill("#f_src","Drying test");pg.fill("#f_raw","3000");pg.fill("#f_buy","9.5");pg.fill("#f_gas","300")
+  pg.click("#formseg button[data-f=buy]");pg.fill("#f_src","Drying test");pg.fill("#f_raw","3000");pg.fill("#f_buy","9.5");pg.evaluate("document.querySelector('#f_more').open=true");pg.fill("#f_gas","300")
   ok("v1.3 projection shown live in buy form (copra blank)","Projection" in pg.inner_text("#f_auto") and "profit after bills" in pg.inner_text("#f_auto"))
   pg.screenshot(path="screenshots/22-projection-form.png",full_page=True);save(pg)
   K5=pg.evaluate("window.__K");dr=[r for r in K5['rows'] if r['source']=='Drying test'][0]
@@ -180,7 +180,7 @@ with sync_playwright() as p:
   ctx.set_offline(True);pg.reload();pg.wait_for_function("window.__K");ok("works offline (SW cache)",pg.evaluate("Object.keys(Chart.instances).length")>=4);ctx.set_offline(False)
   ok("no JS errors",not errs,"; ".join(errs[:3]))
   f=b.new_page(viewport={"width":390,"height":844});f.goto(U+"?sync=1");f.wait_for_function("window.__K");f.click("nav button[data-v=more]");ok("SF sync card shown only with flag",f.locator("#synccard").count()==1)
-  ok("version shown v1.4.0","v1.4.2" in f.inner_text("#v-more"))
+  ok("version shown v1.4.0","v1.5.0" in f.inner_text("#v-more"))
   # v1.2 -> v1.3 IndexedDB migration on a phone with existing data
   m=b.new_context(viewport={"width":390,"height":844});mp=m.new_page();mp.goto(U.replace("index.html","manifest.webmanifest"))
   mp.evaluate("""async()=>{const src=await (await fetch('seed.js')).text();const SEED=new Function(src+';return SEED')();
@@ -206,11 +206,11 @@ with sync_playwright() as p:
     up.evaluate("(async()=>{const r=await store.save('batches',{no:11,source:'Phone batch before upgrade',rawKg:1000,buyTotal:9000,copraKg:0})})()");up.wait_for_timeout(300)
     os.remove(base+"/cur");os.symlink(base+"/new",base+"/cur")   # server now serves v1.3.1
     up.evaluate("navigator.serviceWorker.getRegistration().then(r=>r.update())")
-    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.4.2'",timeout=20000,polling=300)
+    up.wait_for_function("caches.keys().then(k=>window.__ck=k)&&window.__ck&&window.__ck.length===1&&window.__ck[0]==='kopra-1.5.0'",timeout=20000,polling=300)
     up.reload();up.wait_for_function("window.__K");KU=up.evaluate("window.__K")
-    ok("UPGRADE: SW updated, cache bumped to kopra-1.4.2 (old cache gone), page runs v1.4.2",up.evaluate("self.APP_VERSION")=="1.4.2" and up.evaluate("caches.keys()")==["kopra-1.4.2"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.4.2'\"))"))
+    ok("UPGRADE: SW updated, cache bumped to kopra-1.5.0 (old cache gone), page runs v1.5.0",up.evaluate("self.APP_VERSION")=="1.5.0" and up.evaluate("caches.keys()")==["kopra-1.5.0"] and up.evaluate("fetch('sw.js').then(r=>r.text()).then(t=>t.includes(\"SW_VERSION='1.5.0'\"))"))
     ok("UPGRADE: migration ran (6 sold burns -> pool sales), no data lost",up.evaluate("D.uling_sales.length")==6 and abs(KU['char']['ulingSales']-18693)<.01 and any(r['source']=='Phone batch before upgrade' for r in KU['rows']) and abs(KU['raw']-30366)<.01)
-    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.4.2 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.4.2");uc.close()
+    uc.set_offline(True);up.reload();up.wait_for_function("window.__K");ok("UPGRADE: v1.5.0 works offline from new cache",up.evaluate("self.APP_VERSION")=="1.5.0");uc.close()
   finally:srv.terminate();srv.wait()
   # ================= v1.4.0 Lifetime tab (example items are TEST-ONLY) =================
   lc=b.new_context(viewport={"width":390,"height":844},device_scale_factor=2,is_mobile=True,has_touch=True);lp=lc.new_page();lerr=[];lp.on("pageerror",lambda e:lerr.append(str(e)))
@@ -274,9 +274,54 @@ with sync_playwright() as p:
     await put('sales',SEED.sales);await put('expenses',SEED.expenses);await put('charcoal',SEED.charcoal);await put('uling_sales',SEED.uling_sales);
     await put('meta',[{id:'seeded',at:'x'},{id:'mig13',v:true},{id:'device',v:'AB'}]);db.close()}""")
   mp.goto(U);mp.wait_for_function("window.__K");KM=mp.evaluate("window.__K")
-  ok("v1.4 MIGRATION v1.3.2 (IDB v2) -> v1.4.0 (IDB v3): all data kept, lifetime store added",mp.evaluate("indexedDB.databases().then(d=>d.find(x=>x.name==='kopra').version)")==3 and any(r['source']=='Phone data v1.3.2' for r in KM['rows']) and abs(KM['raw']-30366)<.01 and abs(KM['char']['ulingSales']-18693)<.01 and len(mp.evaluate("D.uling_sales"))==6 and KM['life']['total']==0 and mp.evaluate("window.__migrated")==0)
+  ok("v1.4 MIGRATION v1.3.2 (IDB v2) -> v1.5.0 (IDB v4): all data kept, lifetime store added",mp.evaluate("indexedDB.databases().then(d=>d.find(x=>x.name==='kopra').version)")==4 and any(r['source']=='Phone data v1.3.2' for r in KM['rows']) and abs(KM['raw']-30366)<.01 and abs(KM['char']['ulingSales']-18693)<.01 and len(mp.evaluate("D.uling_sales"))==6 and KM['life']['total']==0 and mp.evaluate("window.__migrated")==0)
   mp.click("nav button[data-v=life]");mp.fill("#l_name","Tarps");mp.fill("#l_amt","1000");mp.click("#l_save");mp.wait_for_timeout(300);mp.reload();mp.wait_for_function("window.__K")
   ok("v1.4 MIGRATION: lifetime item saved after upgrade persists",mp.evaluate("window.__K.life.total")==1000);m.close()
+  # v1.5.0 split trackers: buy only -> yield later -> sale later (fresh phone with seed data)
+  tc=b.new_context(viewport={"width":390,"height":844},device_scale_factor=2,is_mobile=True,has_touch=True);tp=tc.new_page();terr=[];tp.on("pageerror",lambda e:terr.append(str(e)))
+  tp.add_init_script("window.__TODAY__='2026-10-11T12:00:00';window.__AUTOCONFIRM__=1");tp.goto(U);tp.wait_for_function("window.__K");tp.wait_for_timeout(500)
+  T0=tp.evaluate("window.__K");ok("v1.5 seed: 10 batches, raw 29,366, copra 6,893.8, net ₱36,856.66, uling ₱18,693",len(T0['rows'])==10 and abs(T0['raw']-29366)<.01 and abs(T0['copra']-6893.8)<.01 and abs(T0['copraNet']-36856.66)<.01 and abs(T0['char']['ulingSales']-18693)<.01)
+  tp.screenshot(path="screenshots/59-v150-dashboard-seed.png");ok("v1.5 dashboard shows inventory line","Raw, not yet dried" in tp.inner_text("#inv") and "Copra on hand" in tp.inner_text("#inv") and "6,893.8 kg" in tp.inner_text("#inv"))
+  tp.click("nav button[data-v=add]");ok("v1.5 Bili form is buy-only (copra hidden under optional)",tp.is_visible("#f_raw") and not tp.is_visible("#f_copra") and tp.is_visible("#f_paid"))
+  tp.fill("#f_src","Mang Ben");tp.fill("#f_raw","1500");tp.fill("#f_buy","10");tp.click("#f_paid button[data-p=p1]")
+  tp.evaluate("document.getElementById('toast').style.display='none'");tp.screenshot(path="screenshots/60-v150-buying-tracker.png");save(tp);T1=tp.evaluate("window.__K");lot=next(r for r in T1['rows'] if r['source']=='Mang Ben')
+  ok("v1.5 BUY-ONLY entry saved as 'Still drying', paid by p1",lot['status']=='drying' and lot['paidBy']=='p1' and abs(T1['inv']['rawUndried']-1500)<.01)
+  ok("v1.5 buy-only adds no income (sales and realized unchanged)",abs(T1['sales']-T0['sales'])<.01 and abs(T1['realized']-T0['realized'])<.01 and abs(T1['copraNet']-(36856.66-15000))<.01)
+  tp.evaluate("document.querySelector('#aftersave').innerHTML=''");ok("v1.5 buying log lists the lot with a Dry button",tp.locator("#buylog [data-dry='"+lot['id']+"']").count()==1)
+  tp.locator("#buylog [data-dry='"+lot['id']+"']").click();ok("v1.5 Dry opens the Yield tracker with that lot",tp.input_value("#f_lot")==lot['id'])
+  tp.fill("#f_dcopra","360");ok("v1.5 yield % shown live","24.00%" in tp.inner_text("#f_yield"))
+  tp.evaluate("document.getElementById('toast').style.display='none'");tp.screenshot(path="screenshots/61-v150-yield-tracker.png");tp.fill("#f_dcopra","2000");tp.click("#f_save");ok("v1.5 yield above raw kg refused","more than the 1,500 kg raw" in tp.inner_text("#f_err"))
+  tp.fill("#f_dcopra","360");save(tp);T2=tp.evaluate("window.__K");l2=next(r for r in T2['rows'] if r['id']==lot['id'])
+  ok("v1.5 YIELD LATER: lot becomes Not yet sold, 360 kg on hand, raw undried 0",l2['status']=='unsold' and abs(l2['copraKg']-360)<.01 and abs(T2['inv']['onHand']-360)<.01 and T2['inv']['rawUndried']==0)
+  ok("v1.5 UNSOLD copra excluded from income (sales, realized, net, lifetime revenue unchanged)",abs(T2['sales']-T1['sales'])<.01 and abs(T2['realized']-T1['realized'])<.01 and abs(T2['copraNet']-T1['copraNet'])<.01 and abs(T2['life']['revenue']-T1['life']['revenue'])<.01)
+  tp.evaluate("document.querySelector('#aftersave').innerHTML=''");tp.evaluate("window.scrollTo(0,0)");tp.evaluate("document.getElementById('toast').style.display='none'");tp.screenshot(path="screenshots/62-v150-yield-log.png",full_page=True)
+  tp.click("#formseg button[data-f=sale]");ok("v1.5 Sold tracker preselects the lot with stock",tp.input_value("#f_batch")==lot['id'])
+  tp.click("#f_st button[data-s=part]");tp.fill("#f_kg","200");tp.fill("#f_price","45");tp.fill("#f_buyer","Mill A");tp.click("#f_recv button[data-p=p2]")
+  tp.evaluate("document.getElementById('toast').style.display='none'");tp.screenshot(path="screenshots/63-v150-sold-tracker.png");save(tp);T3=tp.evaluate("window.__K");l3=next(r for r in T3['rows'] if r['id']==lot['id'])
+  ok("v1.5 SALE LATER: part sold, 160 kg on hand, income +₱9,000 only",l3['status']=='part' and abs(T3['inv']['onHand']-160)<.01 and abs(T3['sales']-T2['sales']-9000)<.01 and abs(T3['copraNet']-(36856.66-15000+9000))<.01)
+  ok("v1.5 sale stores money received by p2",tp.evaluate("D.sales.find(s=>s.batch_id==='"+lot['id']+"').receivedBy")=='p2')
+  tp.evaluate("document.querySelector('#aftersave').innerHTML=''");ok("v1.5 sold log shows the sale","₱9,000.00" in tp.inner_text("#soldlog") and "money to Brother" in tp.inner_text("#soldlog"))
+  tp.evaluate("document.getElementById('soldlog').scrollIntoView()");tp.evaluate("document.getElementById('toast').style.display='none'");tp.screenshot(path="screenshots/64-v150-sold-log.png")
+  tp.click("nav button[data-v=home]");tp.wait_for_timeout(300);iv=tp.inner_text("#inv");ok("v1.5 inventory line: 0 raw undried, 160 on hand, 7,093.8 sold","160.0 kg" in iv and "7,093.8 kg" in iv)
+  tp.evaluate("document.getElementById('toast').style.display='none'");tp.locator("#inv").screenshot(path="screenshots/65-v150-inventory-summary.png");tp.evaluate("document.getElementById('toast').style.display='none'");tp.screenshot(path="screenshots/66-v150-dashboard.png")
+  sw=tp.evaluate("document.documentElement.scrollWidth");ok("v1.5 no horizontal overflow at 390px",sw<=390,str(sw))
+  ok("v1.5 Lifetime best prices still computed",tp.evaluate("window.__K.life.bestOp")!=None and tp.evaluate("window.__K.life.best")!=None)
+  # old v3 backup file (app v1.4.2) imports into v1.5 without loss
+  tp.click("nav button[data-v=more]");tp.set_input_files("#bi","tests/fixtures/v3-backup-v142.json");tp.wait_for_timeout(700);T4=tp.evaluate("window.__K")
+  ok("v1.5 MIGRATION: old v3 backup file imports, blank copra lot = still drying, seed totals kept",len(T4['rows'])==11 and abs(T4['raw']-30566)<.01 and abs(T4['copra']-6893.8)<.01 and abs(T4['sales']-317466)<.01 and abs(T4['char']['ulingSales']-18693)<.01 and abs(T4['inv']['rawUndried']-1200)<.01)
+  tp.click("#br");tp.wait_for_timeout(500);T5=tp.evaluate("window.__K");ok("v1.5 Reset to starting data restores the seed totals",len(T5['rows'])==10 and abs(T5['copraNet']-36856.66)<.01 and abs(T5['char']['ulingSales']-18693)<.01)
+  ok("v1.5 no JS errors on tracker flows",not terr,"; ".join(terr[:3]));tc.close()
+  # v1.4.2 phone (IndexedDB v3) -> v1.5.0 (IndexedDB v4)
+  m=b.new_context(viewport={"width":390,"height":844});mp=m.new_page();mp.add_init_script("window.__TODAY__='2026-10-11T12:00:00'");mp.goto(U.replace("index.html","manifest.webmanifest"))
+  mp.evaluate("""async()=>{const src=await (await fetch('seed.js')).text();const SEED=new Function(src+';return SEED')();
+    const db=await new Promise((res,rej)=>{const q=indexedDB.open('kopra',3);q.onupgradeneeded=()=>['settings','batches','sales','expenses','charcoal','uling_sales','lifetime_items','meta'].forEach(t=>q.result.createObjectStore(t,{keyPath:'id'}));q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});
+    const put=(t,rs)=>new Promise(r=>{const x=db.transaction(t,'readwrite');rs.forEach(v=>x.objectStore(t).put(v));x.oncomplete=r});
+    await put('settings',SEED.settings);await put('batches',SEED.batches.concat([{id:'v142-lot',no:11,source:'Phone data v1.4.2',rawKg:1000,buyTotal:9000,copraKg:null,deleted:false,synced:false}]));
+    await put('sales',SEED.sales);await put('expenses',SEED.expenses);await put('charcoal',SEED.charcoal);await put('uling_sales',SEED.uling_sales);await put('lifetime_items',[{id:'li1',date:'2026-09-01',name:'Tarps',kind:'capital',amount:2000,deleted:false}]);
+    await put('meta',[{id:'seeded',at:'x'},{id:'mig13',v:true},{id:'device',v:'AB'}]);db.close()}""")
+  mp.goto(U);mp.wait_for_function("window.__K");KM=mp.evaluate("window.__K")
+  ok("v1.5 MIGRATION v1.4.2 (IDB v3) -> v1.5.0 (IDB v4): all data kept, blank copra lot = still drying, can add yield",mp.evaluate("indexedDB.databases().then(d=>d.find(x=>x.name==='kopra').version)")==4 and abs(KM['raw']-30366)<.01 and abs(KM['copra']-6893.8)<.01 and abs(KM['char']['ulingSales']-18693)<.01 and KM['life']['total']==2000 and mp.evaluate("window.__migrated")==1 and mp.evaluate("D.batches.find(b=>b.id==='v142-lot').copraKg")==0 and abs(KM['inv']['rawUndried']-1000)<.01)
+  mp.reload();mp.wait_for_function("window.__K");ok("v1.5 MIGRATION runs once (second load migrates 0)",mp.evaluate("window.__migrated")==0);m.close()
   # desktop
   d=b.new_page(viewport={"width":1366,"height":900});d.add_init_script("window.__TODAY__='2026-10-11T12:00:00'");d.goto(U);d.wait_for_function("window.__K");d.wait_for_timeout(600);d.screenshot(path="screenshots/12-dashboard-desktop.png",full_page=True)
   b.close()

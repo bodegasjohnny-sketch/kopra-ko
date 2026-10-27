@@ -1,7 +1,7 @@
-# Kopra Ko: offline copra + uling tracker (PWA) v1.4.1
+# Kopra Ko: offline copra + uling tracker (PWA) v1.5.0
 Run locally: `python3 -m http.server 8765` → http://127.0.0.1:8765 (the service worker needs http/https).
 Tests:
-- `node --test tests/` (calc, store, validation, sync against a mock that mirrors the DB trigger)
+- `node --test tests/` (calc, store, validation, trackers, sync against a mock that mirrors the DB trigger)
 - `bash tests/sql_test.sh` (local Postgres 17: trigger, clock skew, RLS, caps)
 - `python3 tests/e2e.py` (headless Chromium at 390×844; needs the server running)
 - `node staging/staging_test.js` (kept outside tests/ so `node --test tests/` never touches the network) (real Supabase staging; reads secrets from /home/box/.secrets and never prints them)
@@ -33,6 +33,18 @@ Backup import is checked strictly: types, required fields, negatives, caps, vali
   - Projected profit = copra value − buy cost − every bill linked to the batch, so bills lower it as they are logged.
   - Once actual copra is entered, the projection becomes a variance figure. Accuracy is back-tested: each finished batch is projected only from the batches before it, and the average miss % plus how many landed inside the range are shown on the dashboard.
 - **Migration from v1.2 phones:** IndexedDB goes to version 2 (this only adds the `uling_sales` store). A one-time data step turns each v1.2 burn marked "sold" into status "done" plus one pool sale with the same kg and price. Nothing is deleted, and the step is safe to run twice. Importing a v1.2 backup applies the same step.
+
+## v1.5.0: separate trackers (Bili, Yield, Benta)
+- Each stage is logged on its own, like the Uling section. A lot (batch record) can be just bought, then dried later, then sold later. No full batch form is needed.
+  - **🛒 Bili (Buying tracker):** date, supplier (optional), raw kg, price per kg, paid by (tap: partner 1, partner 2, Shared 50/50, or Not set). Asarez, gas and "copra already dried" are under "More (optional)". Saved lots show as "Still drying".
+  - **🌞 Yield (drying tracker):** pick a lot that is still drying, enter dried copra kg and the date dried. Yield % shows live. Copra kg cannot be more than the lot's raw kg, or less than what was already sold from it.
+  - **💰 Benta (Sold tracker):** pick a lot with copra on hand, kg, price per kg, buyer (optional), money received by (tap). Part sales are allowed.
+  - Each tracker shows its own log under the form (Buying log with a "🌞 Dry" button per drying lot, Yield log with yield %, Sold log with totals).
+- **Stock now** line (Home and Add): raw bought not yet dried, dried copra on hand (not sold, not income), and sold kg.
+- Income rule unchanged: only sold copra counts as income. Copra on hand is shown as unrealized only. Lifetime numbers, both best prices, break-even and the uling pool are unchanged.
+- Data: no new table. Batches get optional `paidBy` and `dryDate`; sales get optional `receivedBy`. IndexedDB goes to version 4 (adds no store). A one-time data step (`mig15`) only sets a blank copra kg to 0 ("Still drying"); nothing is removed and it is safe to run twice. Old v1.4.x backup files import the same way.
+- Sync (still OFF): run `supabase/migration_v150_trackers.sql` before turning sync on with v1.5.0. It only adds the three nullable columns.
+- **Reset to starting data** (Backup tab) works as before: it hides every current entry and reloads the 10 seed batches (raw 29,366 kg, copra 6,893.8 kg, copra net ₱36,856.66, uling sales ₱18,693). Lifetime items are cleared because the seed has none.
 
 ## v1.4.1: two best prices
 - Lifetime tab "BEST PRICE TO SELL COPRA" now shows two prices side by side: **Operating-only best price** (operating break-even + target margin, for day-to-day selling) and **All-in best price (with lifetime costs)** (unchanged). The verdict compares today's Settings price to each. Dashboard card shows both.
