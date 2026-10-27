@@ -1,4 +1,4 @@
-// Kopra Ko sync (v1.2). The client NEVER uses its own clock for ordering.
+// JB Integrated Farm sync (v1.2). The client NEVER uses its own clock for ordering.
 //  - Server assigns every accepted write a monotonic `seq` (bigint sequence) and stamps `updated_at = now()`.
 //  - Pull cursor = highest server `seq` seen (re-reads a small overlap window to tolerate out-of-order commits; re-applying is idempotent).
 //  - Each push carries `base_seq` = the server version the edit was based on. The DB trigger skips the write if the row changed

@@ -1,4 +1,13 @@
-# Kopra Ko: offline copra + uling tracker (PWA) v1.5.0
+# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.0
+Live site: copra.johnnybodegas.com (app) and copra.johnnybodegas.com/buying (sales page for farmers selling copra).
+
+## v1.6.0: JB Integrated Farm rename + /buying sales page
+- Everything the user sees now says **JB Integrated Farm** (title, header, manifest name, short_name "JB Farm", About card, version line, export file names `jb-farm-backup-<date>.json` and `jb-farm-<date>.csv`). Contact 0968 270 5321 is a tap-to-call link in the header and the About card (Backup tab).
+- Data carry-over: the IndexedDB name (`kopra`), localStorage keys (`kopra_sync`, `kopra_flags`), the backup JSON field `app:'kopra'` and the cache prefix `kopra-<version>` are unchanged on purpose, so phones keep every record.
+- `buying/index.html` is a standalone static page (no app scripts, no manifest, no SW registration). The app SW treats `/buying` network first with the cached copy only when offline, and never answers it with the app shell.
+- Price on /buying is hidden by default. To show one, set `PRICE_TODAY` near the bottom of buying/index.html (one value).
+- Share image `buying/og.png` (1200x630) was rendered with headless Chromium.
+- No owner name and no address are shipped (tests/brand.test.js checks this).
 Run locally: `python3 -m http.server 8765` → http://127.0.0.1:8765 (the service worker needs http/https).
 Tests:
 - `node --test tests/` (calc, store, validation, trackers, sync against a mock that mirrors the DB trigger)
