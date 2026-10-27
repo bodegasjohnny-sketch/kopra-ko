@@ -62,7 +62,7 @@ test('v1.4 store: lifetime items get id, updated_at, soft delete',async()=>{cons
   assert.match(r.id,/^[0-9a-f-]{36}$/);assert.ok(r.updated_at);await st.remove('lifetime_items',r.id);assert.equal((await st.adapter.get('lifetime_items',r.id)).deleted,true);
   assert.equal(Calc.compute(await st.snapshot(),TODAY).life.total,0)});
 test('v1.4 v1.3.2 data (no lifetime store / settings fields) upgrades with nothing lost',async()=>{const st=DB.Store();await st.seedIfEmpty(SEED);const before=Calc.compute(await st.snapshot(),TODAY);
-  assert.equal(DB.DB_VERSION,3);assert.ok(DB.TABLES.includes('lifetime_items'));const s=await st.snapshot();const after=Calc.compute(s,TODAY);assert.equal(strip(after),strip(before));assert.equal(after.life.margin,2)});
+  assert.equal(DB.DB_VERSION,4);assert.ok(DB.TABLES.includes('lifetime_items'));const s=await st.snapshot();const after=Calc.compute(s,TODAY);assert.equal(strip(after),strip(before));assert.equal(after.life.margin,2)});
 test('v1.4 sync pushes and pulls lifetime items (FIELDS include it; DB migration file exists)',async()=>{
   const T={};let seq=0;const tab=t=>T[t]||(T[t]=new Map());const srv={upsert:async(t,rows)=>rows.map(r=>{const v={...r,seq:++seq,updated_at:new Date().toISOString(),base_seq:null};tab(t).set(r.id,v);return {...v}}),
     pullSince:async(t,c)=>[...tab(t).values()].filter(r=>r.seq>c).map(r=>({...r})),getByIds:async(t,ids)=>ids.map(id=>tab(t).get(id)).filter(Boolean)};

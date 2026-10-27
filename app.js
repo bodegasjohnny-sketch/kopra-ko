@@ -28,7 +28,7 @@ function render(){
  $('#hdr').textContent=`Since ${s.startDate} · day ${t.days} · ${K.rows.length} batches · copra ${P(s.copraPrice)}`;
  const kp=[["Copra net income",P(K.copraNet),"sales − buying − expenses"],[K.char.hasCosts?"Combined net (copra + uling)":"Copra net + uling gross",P(K.combined),K.char.hasCosts?"realized":"uling costs not logged"],["Each partner (50/50)",P(K.share),`${s.partners[0]} / ${s.partners[1]}`],["Capital spent",P0(K.buyTotal),"+ "+P0(K.totalExp)+" expenses"],
   ["Avg buy price / kg",P(K.avgBuy),"weighted"],["Net per kg raw",P(K.netPerKg),"margin "+(K.margin*100).toFixed(1)+"%"],["Raw bought",N(K.raw)+" kg","→ "+N(K.copra,1)+" kg copra"],["Avg yield",pc(K.bid.yield),"sold avg "+P(K.avgSell)+"/kg"]];
- $('#v-home').innerHTML=`<div class="kpis" id="kpis">${kp.map(k=>`<div class="kpi"><div class="l">${k[0]}</div><div class="v">${k[1]}</div><div class="s">${esc(k[2])}</div></div>`).join('')}</div>
+ $('#v-home').innerHTML=`${invHTML('inv')}<div class="kpis" id="kpis">${kp.map(k=>`<div class="kpi"><div class="l">${k[0]}</div><div class="v">${k[1]}</div><div class="s">${esc(k[2])}</div></div>`).join('')}</div>
  <div class="card" id="bidguide" style="border:2px solid var(--g)"><h2>Bid Guide (lifetime benchmark) 🏷️</h2><p class="sub">Price per kg of <b>raw coconut</b> for the next batch. Updates when you save.</p>${bidHTML(K.bid)}</div>
  ${lifeSummary()}
  <div class="card" id="plsplit"><h2>Profit: sold vs. not yet sold</h2><p class="sub">Copra only. Uling not included.</p><div class="g3">
@@ -123,16 +123,38 @@ async function saveLife(){const e=lifeEd||{},n=$('#l_amt').value.trim();
 // ---------- forms ----------
 const fld=(id,l,v='',type='number',ext='')=>`<label for="${id}">${l}</label><input id="${id}" type="${type}" inputmode="${type==='number'?'decimal':'text'}" value="${esc(v)}" ${ext}>`;
 const batchOpts=(sel,onlyStock)=>K.rows.slice().reverse().filter(r=>!onlyStock||r.copraKg>0||r.id===sel).map(r=>`<option value="${esc(r.id)}" ${r.id===sel?'selected':''}>${bl(r)} ${esc(r.source)} (${N(r.copraKg||0,1)} kg copra, ${N(r.onHand,1)} on hand)</option>`).join('');
+// v1.5 big tap buttons for "paid by" / "received by" (p1, p2, shared, or not set). No typing.
+const pick=(id,v)=>`<div class="seg pick" id="${id}">${[['','Not set'],...Object.entries(PAID())].map(([k,l])=>`<button type="button" data-p="${k}" class="${(v||'')===k?'on':''}">${esc(l)}</button>`).join('')}</div>`;
+const pv=id=>{const b=$('#'+id+' .on');return b&&b.dataset.p?b.dataset.p:null};
+// v1.5 inventory line: raw bought not yet dried, dried copra on hand (not sold), sold.
+function invHTML(id){const I=K.inv;return `<div class="card inv" id="${id}"><h2>Stock now 📦</h2><div class="g3i">
+ <div class="box ib1"><div class="t">🥥 Raw, not yet dried</div><div class="p">${N(I.rawUndried)} kg</div><div class="d">${I.lotsUndried} lot${I.lotsUndried===1?'':'s'}</div></div>
+ <div class="box ib2"><div class="t">📦 Copra on hand</div><div class="p">${N(I.onHand,1)} kg</div><div class="d">dried, not sold · not income</div></div>
+ <div class="box ib3"><div class="t">💰 Sold</div><div class="p">${N(I.soldKg,1)} kg</div><div class="d">counted as income</div></div></div></div>`}
+const PB=k=>k?esc(PAID()[k]||''):'';
+function renderTrackers(){const el=$('#trklog');if(!el)return;$('#addinv').outerHTML=invHTML('addinv');let h='';
+ if(form==='buy'){const L=K.rows.slice().reverse();h=`<div class="card" id="buylog"><h2>Buying log</h2>${L.length?L.map(r=>`<div class="item"><span>🛒 ${bl(r)} ${esc(r.source)} · ${N(r.rawKg)} kg @ ${P(r.buy)}<br><span class="sub">${esc(r.date||'no date')}${r.paidBy?' · paid by '+PB(r.paidBy):''} · <span class="tag">${esc(r.statusLabel)}</span></span></span><span style="white-space:nowrap">${r.status==='drying'?`<button class="sell" data-dry="${esc(r.id)}">🌞 Dry</button> `:''}<button data-ted="batches|${esc(r.id)}">Edit</button></span></div>`).join(''):'<div class="note">No buys yet.</div>'}</div>`}
+ if(form==='dry'){const W=K.rows.filter(r=>r.status==='drying').reverse(),Dd=K.rows.filter(r=>r.copraKg>0).reverse();
+  h=`<div class="card" id="drylog"><h2>Yield log</h2>${W.length?`<p class="sub"><b>Waiting to dry:</b> ${W.map(r=>bl(r)+' '+esc(r.source)+' ('+N(r.rawKg)+' kg)').join(', ')}</p>`:''}
+  ${Dd.length?Dd.map(r=>`<div class="item"><span>🌞 ${bl(r)} ${esc(r.source)} · ${N(r.rawKg)} → <b>${N(r.copraKg,1)} kg</b> · yield <b>${pc(r.yield)}</b><br><span class="sub">${esc(r.dryDate||r.date||'no date')} · <span class="tag">${esc(r.statusLabel)}</span></span></span><button data-yed="${esc(r.id)}">Edit</button></div>`).join(''):'<div class="note">No dried lots yet.</div>'}</div>`}
+ if(form==='sale'){const L=live('sales').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));h=`<div class="card" id="soldlog"><h2>Sold log</h2>${L.length?L.map(x=>{const b=D.batches.find(y=>y.id===x.batch_id&&!y.deleted);return `<div class="item"><span>💰 ${b?bl(b):'<b class="neg">not assigned</b>'} · ${N(x.kg,1)} kg × ${P(x.price)} = <b>${P(x.kg*x.price)}</b><br><span class="sub">${esc(x.date||'no date')}${x.buyer?' · '+esc(x.buyer):''}${x.receivedBy?' · money to '+PB(x.receivedBy):''}</span></span><button data-ted="sales|${esc(x.id)}">Edit</button></div>`}).join(''):'<div class="note">No sales yet.</div>'}</div>`}
+ el.innerHTML=h}
 function renderForm(){const e=editing||{},s=S();let h='';
  if(form==='buy'){const gas=e.id?live('expenses').find(x=>x.batch_id===e.id&&x.category==='Gas'):null;
-  h=`<h2>${e.id?'Edit':'New'} buy batch (Bili)</h2>${fld('f_date','Date',e.date||iso(),'date')}${fld('f_src','Source / farmer',e.source||'','text')}
-  <div class="row"><div>${fld('f_raw','Raw coconut kg',e.rawKg||'')}</div><div>${fld('f_buy','Buy price ₱/kg',e.rawKg?(e.buyTotal/e.rawKg).toFixed(4):'')}</div></div>
+  h=`<h2>${e.id?'Edit lot '+bl(e):'🛒 Buying tracker'} (Bili)</h2><p class="sub">Log the buy only. Dry it later in 🌞 Yield, sell it later in 💰 Benta.</p>${fld('f_date','Date bought',e.date||iso(),'date')}${fld('f_src','Supplier (optional)',e.source||'','text','maxlength="120"')}
+  <div class="row"><div>${fld('f_raw','Raw kg',e.rawKg||'')}</div><div>${fld('f_buy','Price ₱/kg',e.rawKg?(e.buyTotal/e.rawKg).toFixed(4):'')}</div></div>
+  <label>Paid by</label>${pick('f_paid',e.paidBy)}
+  <details id="f_more" ${e.id?'open':''}><summary>More (optional): Asarez, gas, copra already dried</summary>
   <div class="row"><div>${fld('f_as','Asarez price ₱/kg',e.asarez||'')}</div><div>${fld('f_gas','Gas ₱',gas?gas.amount:'')}</div></div>
-  ${fld('f_copra','Dried copra kg — leave blank while drying; when entered, batch becomes "Not yet sold"',e.copraKg||'')}
+  ${fld('f_copra','Dried copra kg (blank = still drying; you can add it later in 🌞 Yield)',e.copraKg||'')}</details>
   <div class="note" id="f_rawfix" style="display:none;background:#fff3d6"><b>Check raw kg.</b> Copra is now below what was already sold for this batch, so the old row probably combined two loads. Enter the corrected raw kg for <b>this</b> batch above.<label style="display:flex;gap:8px;align-items:center;color:var(--t)"><input type="checkbox" id="f_rawok" style="width:auto"> Raw kg is already correct</label></div><div class="auto" id="f_auto"></div>`}
- if(form==='sale'){h=`<h2>${e.id?'Edit sale':'Mark copra as sold'} (Benta)</h2><label>Batch</label><select id="f_batch">${e.id&&!K.rows.some(r=>r.id===e.batch_id)?'<option value="">— not assigned to a batch —</option>':''}${batchOpts(e.batch_id||preBatch,true)}</select>
+ if(form==='dry'){const lots=K.rows.filter(r=>r.status==='drying'||r.id===e.id).slice().reverse(),sel=e.id||preBatch;
+  h=`<h2>${e.id?'Edit yield '+bl(e):'🌞 Yield tracker'} (Pagpatuyo)</h2><p class="sub">Pick a bought lot and enter the dried copra kg. Copra on hand is <b>not income</b> until sold.</p>
+  ${lots.length?`<label for="f_lot">Lot (raw bought, not yet dried)</label><select id="f_lot">${lots.map(r=>`<option value="${esc(r.id)}" ${r.id===sel?'selected':''}>${bl(r)} ${esc(r.source)} · ${N(r.rawKg)} kg raw${r.date?' · '+esc(r.date):''}</option>`).join('')}</select>
+  ${fld('f_dcopra','Dried copra kg',e.copraKg||'')}${fld('f_date','Date dried',e.dryDate||iso(),'date')}<div class="auto" id="f_auto"></div>`:'<div class="note" id="drynone">No lots waiting to dry. Log a buy first in 🛒 Bili.</div>'}`}
+ if(form==='sale'){h=`<h2>${e.id?'Edit sale':'💰 Sold tracker'} (Benta)</h2><p class="sub">Only copra logged here counts as income.</p><label>Batch</label><select id="f_batch">${e.id&&!K.rows.some(r=>r.id===e.batch_id)?'<option value="">— not assigned to a batch —</option>':''}${batchOpts(e.batch_id||preBatch,true)}</select>
   <label>Copra sold?</label><div class="seg" id="f_st"><button data-s="all" class="on">All sold</button><button data-s="part">Part sold</button><button data-s="none">Not yet</button></div>
-  <div class="row"><div>${fld('f_kg','Kg sold',e.kg||'')}</div><div>${fld('f_price','Price ₱/kg',e.price||s.copraPrice)}</div></div>${fld('f_date','Date',e.date||iso(),'date')}${fld('f_buyer','Buyer / mill',e.buyer||'','text')}<div class="auto" id="f_auto"></div>`}
+  <div class="row"><div>${fld('f_kg','Kg sold',e.kg||'')}</div><div>${fld('f_price','Price ₱/kg',e.price||s.copraPrice)}</div></div>${fld('f_date','Date',e.date||iso(),'date')}${fld('f_buyer','Buyer (optional)',e.buyer||'','text','maxlength="120"')}<label>Money received by</label>${pick('f_recv',e.receivedBy)}<div class="auto" id="f_auto"></div>`}
  if(form==='char'){h=`<h2>${e.id?'Edit':'New'} uling burn (pool)</h2><p class="sub">Bagol comes from the shared pool (${N(K.char.bagolOnHand)} kg not yet burned). Sell uling with 💵 Uling benta.</p>${fld('f_date','Date',e.date||iso(),'date')}<div class="row"><div>${fld('f_bagol','Bagol kg',e.bagolKg||'')}</div><div>${fld('f_uling','Uling kg (0 if still burning)',e.ulingKg??'')}</div></div>
   <label>Status</label><select id="f_status">${[['burning','In kiln (burning)'],['done','Done (uling into pool)']].map(([x,l])=>`<option value="${x}" ${x===(e.status==='sold'?'done':(e.status||'burning'))?'selected':''}>${esc(l)}</option>`).join('')}</select><div class="auto" id="f_auto"></div>`}
  if(form==='usale'){h=`<h2>${e.id?'Edit':'Sell'} uling from pool (Benta)</h2><p class="sub">Pool has <b>${N(K.char.ulingOnHand+(e.id?+e.kg:0),1)} kg</b> uling on hand.</p>
@@ -141,7 +163,7 @@ function renderForm(){const e=editing||{},s=S();let h='';
   h=`<h2>${e.id?'Edit':'New'} expense (Gastos)</h2>${fld('f_date','Date',e.date||iso(),'date')}<label>Category</label><select id="f_cat">${cats.map(c=>`<option ${c===e.category?'selected':''}>${esc(c)}</option>`).join('')}</select>
   ${fld('f_amt','Amount ₱',e.amount||'')}<label>Batch (optional)</label><select id="f_batch"><option value="">— general / not for one batch —</option>${batchOpts(e.batch_id)}</select>${fld('f_note','Note',e.note||'','text')}`}
  h+=`<div class="note" id="f_err" style="display:none;background:#f8dcd5;border-color:#b5462f"></div><button class="btn" id="f_save">💾 I-save</button>${e.id?'<button class="btn sec" id="f_cancel">Cancel edit</button>':''}`;
- $('#formcard').innerHTML=h;document.querySelectorAll('#formseg button').forEach(b=>b.classList.toggle('on',b.dataset.f===form));
+ $('#formcard').innerHTML=h;renderTrackers();document.querySelectorAll('#formseg button').forEach(b=>b.classList.toggle('on',b.dataset.f===form));
  $('#f_save').onclick=saveForm;if($('#f_cancel'))$('#f_cancel').onclick=()=>{editing=null;renderForm()};
  if($('#f_st'))$('#f_st').onclick=ev=>{const b=ev.target.closest('button');if(!b)return;$('#f_st').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));const r=K.rows.find(r=>r.id===$('#f_batch').value);
   if(b.dataset.s==='all'&&r)$('#f_kg').value=r.onHand+(editing?+editing.kg:0);if(b.dataset.s==='none')$('#f_kg').value=0;autoCalc()};
@@ -149,6 +171,8 @@ function renderForm(){const e=editing||{},s=S();let h='';
  $('#formcard').oninput=ev=>{if(form==='char'&&ev.target.id==='f_uling'&&+ev.target.value>0)$('#f_status').value='done';autoCalc()};$('#formcard').onchange=autoCalc;autoCalc();
 }
 function autoCalc(){const a=$('#f_auto');if(!a)return;const v=id=>+($(id)?.value||0);
+ if(form==='dry'){const r=K.rows.find(r=>r.id===$('#f_lot').value);if(!r)return;const c=v('#f_dcopra'),y=c/r.rawKg;
+  a.innerHTML=`<span class="tag">AUTO</span> Raw dried <b>${N(r.rawKg)} kg</b>${c?` · yield <b id="f_yield">${pc(y)}</b>${K.bid.hasData?' (avg '+pc(K.bid.yield)+')':''} · worth about ${P0(c*S().copraPrice)} at ${P(S().copraPrice)}, <b>not income until sold</b>`:''}${c>r.rawKg?'<br>⚠️ More than raw kg':''}`}
  if(form==='buy'){const tot=v('#f_raw')*v('#f_buy'),y=v('#f_raw')&&v('#f_copra')?v('#f_copra')/v('#f_raw'):null,s=S();
   const bills=v('#f_gas')+(editing&&editing.id?live('expenses').filter(x=>x.batch_id===editing.id&&x.category!=='Gas').reduce((t,x)=>t+x.amount,0):0);
   const pj=Calc.projectNew(K,s,v('#f_raw'),tot,bills);
@@ -161,8 +185,7 @@ const numv=id=>{const x=$(id).value.trim();return x===''?null:+x};
 async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved ✓';
  const fail=m=>{toast('⚠️ '+m);$('#aftersave').innerHTML='';const a=$('#f_err');if(a){a.textContent='⚠️ '+m;a.style.display='block'}return false};
  const chk=(kind,rec,ctx)=>{const m=Calc.validate(kind,rec,ctx);return m?fail(m):true};
- if(form==='buy'){const rec={date:v('#f_date')||null,rawKg:numv('#f_raw'),buyPrice:numv('#f_buy'),asarez:numv('#f_as'),gas:numv('#f_gas'),copraKg:numv('#f_copra')??0,
-   };if(!chk('buy',rec))return;
+ if(form==='buy'){const rec={date:v('#f_date')||null,rawKg:numv('#f_raw'),buyPrice:numv('#f_buy'),asarez:numv('#f_as'),gas:numv('#f_gas'),copraKg:numv('#f_copra')??0,paidBy:pv('f_paid')};if(!chk('buy',rec))return;
   if(e.id){const cur=K.rows.find(r=>r.id===e.id),soldNow=cur?cur.soldKg:0;
    if(rec.copraKg<soldNow-1e-9&&Math.abs(rec.rawKg-e.rawKg)<1e-9&&!$('#f_rawok').checked){$('#f_rawfix').style.display='block';
     return fail(`Copra ${N(rec.copraKg,1)} kg is below the ${N(soldNow,1)} kg already sold. Enter the corrected raw kg for this batch (or tick "Raw kg is already correct").`)}}
@@ -171,7 +194,7 @@ async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved �
    const sim={batches:live('batches').map(x=>x.id===e.id?{...x,rawKg:rec.rawKg,copraKg:rec.copraKg}:x),sales:live('sales').filter(x=>x.batch_id!==e.id).concat([{id:'sim-a',batch_id:e.id,kg:asg-ex},{id:'sim-u',batch_id:null,from_batch:e.id,lineage_copra:lc,kg:ex}].filter(x=>x.kg>0))};
    const le=Calc.lineageErrors(sim);if(le.length)return fail(le[0]+'. Fix raw / copra kg, or assign the unassigned sale first.')}
   const no=e.no||Math.max(0,...live('batches').map(b=>b.no))+1;
-  const b=await store.save('batches',{...e,no,dev:e.id?e.dev:DEV,date:rec.date,source:v('#f_src')||'Batch '+no,rawKg:rec.rawKg,buyTotal:Math.round(rec.rawKg*rec.buyPrice*100)/100,asarez:rec.asarez,copraKg:rec.copraKg});
+  const b=await store.save('batches',{...e,no,dev:e.id?e.dev:DEV,date:rec.date,source:v('#f_src').trim()||'Batch '+no,rawKg:rec.rawKg,buyTotal:Math.round(rec.rawKg*rec.buyPrice*100)/100,asarez:rec.asarez,copraKg:rec.copraKg,paidBy:rec.paidBy,dryDate:rec.copraKg>0?(e.dryDate||rec.date):null});
   const g=live('expenses').find(x=>x.batch_id===b.id&&x.category==='Gas');if(rec.gas||g)await store.save('expenses',{...(g||{}),batch_id:b.id,date:rec.date,category:'Gas',amount:rec.gas||0,note:''});msg='Batch '+bl(b)+' saved ✓';
   // Copra reduced below what was already sold (e.g. a sheet row that combined two loads): move the excess sold kg to an
   // UNASSIGNED sale (same price) instead of blocking the edit or losing revenue. User re-assigns it in Records.
@@ -182,8 +205,11 @@ async function saveForm(){const v=id=>$(id).value,e=editing||{};let msg='Saved �
  if(form==='sale'){if(!$('#f_batch').value)return fail('Pick a batch for this sale');const st=$('#f_st .on').dataset.s;
   if(st==='none'&&!e.id){msg='Marked as not yet sold (stock) ✓'}else{
    const r=K.rows.find(r=>r.id===$('#f_batch').value),avail=r.onHand+(e.id&&e.batch_id===r.id?+e.kg:0);
-   const rec={date:v('#f_date')||null,kg:numv('#f_kg'),price:numv('#f_price')};if(!chk('sale',rec,{onHand:avail}))return;
-   await store.save('sales',{...e,batch_id:r.id,date:rec.date,kg:rec.kg,price:rec.price,buyer:v('#f_buyer')});msg='Sale saved ✓';const rr=Calc.compute(await store.snapshot(),today()).rows.find(x=>x.id===r.id);if(rr&&rr.status==='sold')msg+=' · batch '+bl(r)+' Complete'}}
+   const rec={date:v('#f_date')||null,kg:numv('#f_kg'),price:numv('#f_price'),receivedBy:pv('f_recv')};if(!chk('sale',rec,{onHand:avail}))return;
+   await store.save('sales',{...e,batch_id:r.id,date:rec.date,kg:rec.kg,price:rec.price,buyer:v('#f_buyer').trim(),receivedBy:rec.receivedBy});msg='Sale saved ✓';const rr=Calc.compute(await store.snapshot(),today()).rows.find(x=>x.id===r.id);if(rr&&rr.status==='sold')msg+=' · batch '+bl(r)+' Complete'}}
+ if(form==='dry'){if(!$('#f_lot'))return fail('No lot to dry yet. Log a buy first in 🛒 Bili.');const lot=live('batches').find(x=>x.id===$('#f_lot').value),row=K.rows.find(x=>x.id===lot.id);
+  const rec={copraKg:numv('#f_dcopra'),dryDate:v('#f_date')||null};if(!chk('yield',rec,{rawKg:lot.rawKg,soldKg:row.soldKg}))return;
+  await store.save('batches',{...lot,copraKg:rec.copraKg,dryDate:rec.dryDate});msg=`Yield ${bl(lot)} saved ✓ · ${pc(rec.copraKg/lot.rawKg)}`}
  if(form==='char'){const rec={date:v('#f_date')||null,bagolKg:numv('#f_bagol'),ulingKg:numv('#f_uling')??0,status:v('#f_status')};if(!chk('char',rec))return;
   if(rec.status==='burning'&&rec.ulingKg>0)return fail('Uling kg is filled in but Status is still "In kiln (burning)" — uling only goes into the pool when Status is "Done". Change Status to Done, or set uling kg to 0 if it is still burning.');
   const pg=Calc.poolCheck(K,e.id?e:null,rec);if(pg)return fail(pg);
@@ -210,7 +236,10 @@ let preBatch=null;
 document.addEventListener('click',async ev=>{const led=ev.target.dataset?.led,ldel=ev.target.dataset?.ldel;
  if(led){lifeEd=D.lifetime_items.find(x=>x.id===led);renderLife();window.scrollTo(0,$('#lifeform').offsetTop-70);return}
  if(ldel){if(!(window.__AUTOCONFIRM__||confirm('Delete this lifetime item?')))return;await store.remove('lifetime_items',ldel);if(lifeEd&&lifeEd.id===ldel)lifeEd=null;await load();toast('Deleted');sched();return}
- const ed=ev.target.dataset?.ed,del=ev.target.dataset?.del,sell=ev.target.dataset?.sell;
+ const pk=ev.target.closest&&ev.target.closest('.pick button');if(pk){pk.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===pk));return}
+ const dry=ev.target.dataset?.dry,yed=ev.target.dataset?.yed;
+ if(dry||yed){editing=yed?D.batches.find(x=>x.id===yed):null;form='dry';preBatch=dry||null;show('add');$('#aftersave').innerHTML='';renderForm();preBatch=null;window.scrollTo(0,0);return}
+ const ed=ev.target.dataset?.ed||ev.target.dataset?.ted,del=ev.target.dataset?.del,sell=ev.target.dataset?.sell;
  if(sell){editing=null;form='sale';preBatch=sell;show('add');$('#aftersave').innerHTML='';renderForm();preBatch=null;window.scrollTo(0,0);return}
  if(ed){const[t,id]=ed.split('|');editing=D[t].find(x=>x.id===id);form={batches:'buy',sales:'sale',charcoal:'char',expenses:'exp',uling_sales:'usale'}[t];show('add');renderForm();window.scrollTo(0,0)}
  if(del){const[t,id]=del.split('|');
@@ -236,7 +265,7 @@ function renderMore(){const s=S(),c=cfg();
  const dl=(name,txt,type)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()};
  $('#bx').onclick=async()=>dl(`kopra-backup-${iso()}.json`,JSON.stringify({app:'kopra',exported:new Date().toISOString(),...await store.snapshot()},null,1),'application/json');
  $('#bc').onclick=()=>{const csv=(rows,cols)=>[cols.join(',')].concat(rows.map(r=>cols.map(c=>JSON.stringify(r[c]??'')).join(','))).join('\n');
-  dl(`kopra-${iso()}.csv`,['# batches',csv(K.rows,['no','date','source','rawKg','buy','buyTotal','asarez','copraKg','soldKg','onHand','sellPrice','exp','net','be']),'','# sales',csv(live('sales'),['batch_id','date','kg','price','buyer']),'','# expenses',csv(live('expenses'),['date','category','amount','batch_id','note']),'','# uling burns',csv(live('charcoal'),['no','date','bagolKg','ulingKg','status']),'','# uling sales (pool)',csv(live('uling_sales'),['date','kg','price','buyer']),'','# lifetime items',csv(live('lifetime_items'),['date','name','kind','amount','paidBy','note'])].join('\n'),'text/csv')};
+  dl(`kopra-${iso()}.csv`,['# batches',csv(K.rows,['no','date','source','rawKg','buy','buyTotal','asarez','copraKg','soldKg','onHand','sellPrice','exp','net','be','paidBy','dryDate']),'','# sales',csv(live('sales'),['batch_id','date','kg','price','buyer','receivedBy']),'','# expenses',csv(live('expenses'),['date','category','amount','batch_id','note']),'','# uling burns',csv(live('charcoal'),['no','date','bagolKg','ulingKg','status']),'','# uling sales (pool)',csv(live('uling_sales'),['date','kg','price','buyer']),'','# lifetime items',csv(live('lifetime_items'),['date','name','kind','amount','paidBy','note'])].join('\n'),'text/csv')};
  $('#bi').onchange=async ev=>{const f=ev.target.files[0];ev.target.value='';if(!f)return;try{const o=JSON.parse(await f.text());await store.replaceAll(o);await load();toast('Backup restored ✓');sched()}catch(e){toast('⚠️ '+(e.errors?'Backup rejected: '+e.errors[0]:'Not a valid backup file'));const x=$('#bierr');if(x){x.style.display='block';x.textContent='⚠️ Backup rejected: '+(e.errors||[e.message]).slice(0,5).join(' · ')}}};
  $('#br').onclick=async()=>{if(!(window.__AUTOCONFIRM__||confirm('Erase all entries and reload seed data?')))return;await store.replaceAll(SEED);await load();toast('Reset ✓');sched()};
  $('#ss').onclick=async()=>{const n=id=>{const x=$(id).value.trim();return x===''?null:+x};

@@ -78,7 +78,9 @@ function compute(db,today){
   const budget=Object.entries(s.budget).map(([k,v])=>{const act=(byCat[k]||0);return {cat:k,budgetPerKg:v,actual:act,actualPerKg:raw?act/raw:0,budgetTotal:v*raw}});
   const room=raw?(copraNet+ulingNet)/raw:0;
   const meri=byCat['Merienda / meals']||0,meriCap=s.budget['Merienda / meals']||0;
-  return {life,rows,raw,copra,buyTotal,batchExp,otherExp,totalExp:batchExp+otherExp,sales,soldKg,onHand,copraNet,realized,unrealized,total:realized+unrealized,
+  // v1.5 inventory line: raw bought not yet dried -> dried copra on hand (not sold, NOT income) -> sold.
+  const inv={rawUndried:sum(rows.filter(r=>r.status==='drying'),r=>r.rawKg),lotsUndried:rows.filter(r=>r.status==='drying').length,onHand,soldKg,rawBought:raw,copraMade:copra};
+  return {inv,life,rows,raw,copra,buyTotal,batchExp,otherExp,totalExp:batchExp+otherExp,sales,soldKg,onHand,copraNet,realized,unrealized,total:realized+unrealized,
     unassigned:{kg:unKg,value:unP,list:unassigned},pending:pendingRows.map(r=>({id:r.id,no:r.no,dev:r.dev,source:r.source})),dry,accuracy,projYield:projYield(bidRows),
     avgBuy:raw?buyTotal/raw:0,avgSell:soldKg?sales/soldKg:0,netPerKg:raw?copraNet/raw:0,margin:sales?copraNet/sales:0,
     costPerKgCopra:copra?(sum(done,r=>r.cost))/copra:0,stockValue:onHand*s.copraPrice,stockCost:sum(rows,r=>r.stockCost),
@@ -142,10 +144,16 @@ function validate(kind,r,ctx={}){
   if(kind==='buy'){if(e=pos(r.rawKg,'Raw kg must be more than 0'))return e;if(e=pos(r.buyPrice,'Buy price must be more than 0'))return e;
     if(e=nn(r.gas,'Gas cannot be negative'))return e;if(e=nn(r.copraKg,'Copra kg cannot be negative'))return e;if(e=nn(r.asarez,'Asarez price cannot be negative'))return e;
     if(e=cap(r.rawKg,CAPS.rawKg,'Raw kg')||cap(r.buyPrice,CAPS.buyPrice,'Buy price ₱/kg')||cap(r.asarez,CAPS.asarez,'Asarez price ₱/kg')||cap(r.gas,CAPS.gas,'Gas ₱'))return e;
+    if(r.paidBy!=null&&r.paidBy!==''&&!PAID_BY.includes(r.paidBy))return 'Pick who paid';
     if(r.copraKg>r.rawKg)return 'Copra kg cannot be more than raw kg';if(r.minCopra!=null&&r.copraKg<r.minCopra-1e-9)return `Copra kg cannot be less than already sold (${r.minCopra} kg)`;}
   if(kind==='sale'){if(e=pos(r.kg,'Kg sold must be more than 0'))return e;if(e=pos(r.price,'Price must be more than 0'))return e;
     if(e=cap(r.kg,CAPS.saleKg,'Kg sold')||cap(r.price,CAPS.salePrice,'Copra price ₱/kg'))return e;
+    if(r.receivedBy!=null&&r.receivedBy!==''&&!PAID_BY.includes(r.receivedBy))return 'Pick who got the money';
     if(ctx.onHand!=null&&r.kg>ctx.onHand+1e-9)return `Cannot sell ${r.kg} kg — only ${Math.round(ctx.onHand*10)/10} kg on hand`;}
+  // v1.5 Yield tracker: dried copra for one bought lot. ctx: {rawKg of the lot, soldKg already sold from it}
+  if(kind==='yield'){if(e=pos(r.copraKg,'Dried copra kg must be more than 0'))return e;if(!isDate(r.dryDate))return 'Date is not valid';
+    if(ctx.rawKg!=null&&r.copraKg>ctx.rawKg+1e-9)return `Copra kg cannot be more than the ${fmt(ctx.rawKg)} kg raw in this lot`;
+    if(ctx.soldKg&&r.copraKg<ctx.soldKg-1e-9)return `Copra kg cannot be less than already sold (${Math.round(ctx.soldKg*10)/10} kg)`;}
   if(kind==='char'){if(e=pos(r.bagolKg,'Bagol kg must be more than 0'))return e;if(e=nn(r.ulingKg,'Uling kg cannot be negative'))return e;
     if(e=cap(r.bagolKg,CAPS.bagolKg,'Bagol kg'))return e;if(r.price!=null&&(e=nn(r.price,'Uling price cannot be negative')||cap(r.price,CAPS.ulingPrice,'Uling price ₱/kg')))return e;
     if(r.ulingKg>r.bagolKg)return 'Uling kg cannot be more than bagol kg';if(!['burning','done','sold'].includes(r.status))return 'Pick a status';
@@ -182,11 +190,11 @@ function validateBackup(o){const E=[];const T=['settings','batches','sales','exp
   const B=new Map();live('batches').forEach((r,i)=>{if(!base('batches',r,i))return;const w=`batches[${i}]`;
     if(!Number.isInteger(r.no)||r.no<1||r.no>CAPS.batchNo)E.push(`${w}: bad batch number`);if(!STR(r.source,120))E.push(`${w}: bad source`);if(!STR(r.dev,4)||(r.dev&&!/^[A-Z0-9]{1,4}$/.test(r.dev)))E.push(`${w}: bad device tag`);
     if(!num(r.buyTotal)||r.buyTotal<=0)E.push(`${w}: bad buyTotal`);
-    chk(w,validate('buy',{rawKg:r.rawKg,buyPrice:num(r.buyTotal)&&num(r.rawKg)&&r.rawKg>0?r.buyTotal/r.rawKg:NaN,asarez:r.asarez,copraKg:r.copraKg??0}));B.set(r.id,{copra:r.copraKg||0,raw:r.rawKg,sold:0})});
+    chk(w,validate('buy',{rawKg:r.rawKg,buyPrice:num(r.buyTotal)&&num(r.rawKg)&&r.rawKg>0?r.buyTotal/r.rawKg:NaN,asarez:r.asarez,copraKg:r.copraKg??0,paidBy:r.paidBy}));if(!isDate(r.dryDate))E.push(`${w}: bad dryDate`);B.set(r.id,{copra:r.copraKg||0,raw:r.rawKg,sold:0})});
   live('sales').forEach((r,i)=>{if(!base('sales',r,i))return;const w=`sales[${i}]`;if(!STR(r.buyer,120))E.push(`${w}: bad buyer`);
     if(r.from_batch!=null&&(typeof r.from_batch!=='string'||!UUIDISH.test(r.from_batch)))E.push(`${w}: bad from_batch`);
     if(r.lineage_copra!=null&&(!num(r.lineage_copra)||r.lineage_copra<0||r.lineage_copra>CAPS.rawKg))E.push(`${w}: bad lineage_copra`);
-    if(r.batch_id!=null&&!B.has(r.batch_id))E.push(`${w}: batch not found`);else if(r.batch_id!=null)B.get(r.batch_id).sold+=+r.kg||0;chk(w,validate('sale',{kg:r.kg,price:r.price}))});
+    if(r.batch_id!=null&&!B.has(r.batch_id))E.push(`${w}: batch not found`);else if(r.batch_id!=null)B.get(r.batch_id).sold+=+r.kg||0;chk(w,validate('sale',{kg:r.kg,price:r.price,receivedBy:r.receivedBy}))});
   for(const[id,b]of B)if(b.sold>b.copra+1e-6)E.push(`batch ${id.slice(0,8)}: sold more copra than made`);
   E.push(...lineageErrors(o));
   live('expenses').forEach((r,i)=>{if(!base('expenses',r,i))return;const w=`expenses[${i}]`;if(r.batch_id!=null&&!B.has(r.batch_id))E.push(`${w}: batch not found`);if(!STR(r.note,200))E.push(`${w}: bad note`);chk(w,validate('exp',{amount:r.amount,category:r.category}))});

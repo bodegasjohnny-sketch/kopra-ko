@@ -24,3 +24,10 @@ label{display:block;font-size:12px;color:var(--m);margin:8px 0 3px}input,select{
 @media(min-width:760px){.kpis{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
 .item .sell{background:var(--g2);color:#fff;font-weight:700}
 #formseg button{flex:1 1 30%}
+
+/* v1.5 trackers */
+.g3i{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.inv .box{padding:8px}.inv .box .p{font-size:17px}.inv .box .t,.inv .box .d{font-size:11px}
+.ib1{background:var(--b)}.ib2{background:var(--a);color:#3a2a05}.ib3{background:var(--g2)}
+.seg.pick button{padding:12px 4px;font-size:14px;min-height:44px}
+details{margin-top:10px;border:1px dashed #d9c9a5;border-radius:10px;padding:8px}summary{font-size:13px;color:var(--g);font-weight:700;padding:6px 0;cursor:pointer}
+#formseg button{min-width:30%;min-height:44px}
