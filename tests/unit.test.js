@@ -106,7 +106,7 @@ test('FIX4 sw never caches Supabase/API/cross-origin; cache name embedded in sw.
   const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');vm.runInNewContext(src+';this.isApi=isApi;this.V=V',ctx);const u=x=>new URL(x);
   assert.ok(ctx.isApi(u('https://abc.supabase.co/rest/v1/batches')));assert.ok(ctx.isApi(u('https://copra.johnnybodegas.com/auth/v1/token')));assert.ok(ctx.isApi(u('https://cdn.example.com/x.js')));
   assert.ok(!ctx.isApi(u('https://copra.johnnybodegas.com/app.js')));const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];
-  assert.equal(ver,'1.4.1');assert.equal(ctx.V,'kopra-'+ver)});
+  assert.equal(ver,'1.4.2');assert.equal(ctx.V,'kopra-'+ver)});
 test('v1.3.1 BLOCKER1 sw.js embeds the release version (bytes change every release), no importScripts, cache:reload',()=>{const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');
   const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];assert.ok(src.includes(`const SW_VERSION='${ver}'`));assert.ok(!/importScripts/.test(src));assert.ok(src.includes("cache:'reload'"))});
 test('SF CNAME + README signup note',()=>{assert.equal(fs.readFileSync(path.join(ROOT,'CNAME'),'utf8').trim(),'copra.johnnybodegas.com');assert.match(fs.readFileSync(path.join(ROOT,'README.md'),'utf8'),/disable.*sign.?ups/i)});
