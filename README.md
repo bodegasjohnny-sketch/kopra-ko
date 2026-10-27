@@ -1,5 +1,5 @@
 # JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.0
-Live site: copra.johnnybodegas.com (app) and copra.johnnybodegas.com/buying (sales page for farmers selling copra).
+Live site: copra.johnnybodegas.com (app) and copra.johnnybodegas.com/buying (sales page: we buy whole matured coconuts from farmers).
 
 ## v1.6.0: JB Integrated Farm rename + /buying sales page
 - Everything the user sees now says **JB Integrated Farm** (title, header, manifest name, short_name "JB Farm", About card, version line, export file names `jb-farm-backup-<date>.json` and `jb-farm-<date>.csv`). Contact 0968 270 5321 is a tap-to-call link in the header and the About card (Backup tab).
