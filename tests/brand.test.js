@@ -1,4 +1,4 @@
-// v1.6.1 JB Integrated Farm rename and /buying sales page checks.
+// v1.6.2 JB Integrated Farm rename and /buying sales page checks.
 const test=require('node:test'),assert=require('node:assert'),fs=require('fs'),path=require('path'),cp=require('child_process');
 const ROOT=path.join(__dirname,'..');const rd=f=>fs.readFileSync(path.join(ROOT,f),'utf8');
 const shipped=cp.execSync('git ls-files -co --exclude-standard',{cwd:ROOT}).toString().split('\n').filter(f=>f&&!f.startsWith('screenshots/')&&!f.startsWith('tests/')&&/\.(html|js|css|webmanifest|json|md|txt|xml|sql)$/.test(f)&&fs.existsSync(path.join(ROOT,f)));
@@ -17,7 +17,7 @@ test('buying page SEO, JSON-LD and no price claim',()=>{const b=rd('buying/index
   const ld=[...b.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m=>JSON.parse(m[1]));const org=ld.find(x=>x['@type']==='LocalBusiness');assert.deepEqual(Object.keys(org).sort(),['@context','@type','address','name','telephone','url']);assert.equal(org.address.addressLocality,'Butuan City');assert.equal(org.address.addressCountry,'PH');assert.equal(org.telephone,'+639682705321');
   const faq=ld.find(x=>x['@type']==='FAQPage');assert.ok(faq.mainEntity.length>=6&&faq.mainEntity.length<=8);
   assert.ok(b.includes("var PRICE_TODAY='';"));assert.ok(!/₱\s*\d|PHP\s*[1-9]/.test(b.replace(/\/\/ PRICE:.*\n/,'')));assert.ok(!b.includes('\u2014'));assert.ok(!/serviceWorker|rel="manifest"/.test(b));assert.ok(fs.existsSync(path.join(ROOT,'buying/og.png')))});
-test('version consistency 1.6.1',()=>{const v=rd('version.js').match(/APP_VERSION='([^']+)'/)[1],s=rd('sw.js').match(/SW_VERSION='([^']+)'/)[1];assert.equal(v,'1.6.1');assert.equal(s,v);assert.ok(rd('README.md').includes('v1.6.1'))});
+test('version consistency 1.6.2',()=>{const v=rd('version.js').match(/APP_VERSION='([^']+)'/)[1],s=rd('sw.js').match(/SW_VERSION='([^']+)'/)[1];assert.equal(v,'1.6.2');assert.equal(s,v);assert.ok(rd('README.md').includes('v1.6.2'))});
 test('SW sends /buying to the network, never the app shell',()=>{const s=rd('sw.js');assert.ok(s.includes('isBuying(u)'));assert.ok(!/respondWith\([^)]*index\.html/.test(s))});
 test('buying offer: whole matured coconuts, tagline, 1,000 kg pickup, no dried copra claim',()=>{const b=rd('buying/index.html');
   assert.ok(b.includes('Iwan mo na sa amin ang hassle, kami na ang gagawa ng kopra. Bayad ka sa araw ng bentahan.'));

@@ -1,4 +1,4 @@
-# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.1
+# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.2
 Live site: copra.johnnybodegas.com (app) and copra.johnnybodegas.com/buying (sales page: we buy whole matured coconuts from farmers).
 
 ## v1.6.1: /buying pickup 1,000 kg+ and address
