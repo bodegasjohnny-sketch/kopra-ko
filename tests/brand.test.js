@@ -17,7 +17,7 @@ test('buying page SEO, JSON-LD and no price claim',()=>{const b=rd('buying/index
   const ld=[...b.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m=>JSON.parse(m[1]));const org=ld.find(x=>x['@type']==='LocalBusiness');assert.deepEqual(Object.keys(org).sort(),['@context','@type','address','name','telephone','url']);assert.equal(org.address.addressLocality,'Butuan City');assert.equal(org.address.addressCountry,'PH');assert.equal(org.telephone,'+639682705321');
   const faq=ld.find(x=>x['@type']==='FAQPage');assert.ok(faq.mainEntity.length>=6&&faq.mainEntity.length<=8);
   assert.ok(b.includes("var PRICE_TODAY='';"));assert.ok(!/₱\s*\d|PHP\s*[1-9]/.test(b.replace(/\/\/ PRICE:.*\n/,'')));assert.ok(!b.includes('\u2014'));assert.ok(!/serviceWorker|rel="manifest"/.test(b));assert.ok(fs.existsSync(path.join(ROOT,'buying/og.png')))});
-test('version consistency 1.6.2',()=>{const v=rd('version.js').match(/APP_VERSION='([^']+)'/)[1],s=rd('sw.js').match(/SW_VERSION='([^']+)'/)[1];assert.equal(v,'1.6.2');assert.equal(s,v);assert.ok(rd('README.md').includes('v1.6.2'))});
+test('version consistency 1.6.3',()=>{const v=rd('version.js').match(/APP_VERSION='([^']+)'/)[1],s=rd('sw.js').match(/SW_VERSION='([^']+)'/)[1];assert.equal(v,'1.6.3');assert.equal(s,v);assert.ok(rd('README.md').includes('v1.6.3'))});
 test('SW sends /buying to the network, never the app shell',()=>{const s=rd('sw.js');assert.ok(s.includes('isBuying(u)'));assert.ok(!/respondWith\([^)]*index\.html/.test(s))});
 test('buying offer: whole matured coconuts, tagline, 1,000 kg pickup, no dried copra claim',()=>{const b=rd('buying/index.html');
   assert.ok(b.includes('Iwan mo na sa amin ang hassle, kami na ang gagawa ng kopra. Bayad ka sa araw ng bentahan.'));
@@ -26,3 +26,13 @@ test('buying offer: whole matured coconuts, tagline, 1,000 kg pickup, no dried c
   assert.ok(b.includes('Wala pang 1,000 kg? Dalhin sa amin.')&&!b.includes('pinakamainam'));assert.ok(b.includes('Nagbabago ang presyo ayon sa merkado'));assert.ok(b.includes('Tawag para sa presyo ngayon'))});
 
 test('buying address + below 1,000 kg delivery',()=>{const b=rd('buying/index.html');assert.ok(b.includes('Purok 2, Ohong-Duque Road, Taguibo, Butuan City'));assert.ok(b.includes('Wala pang 1,000 kg? Dalhin sa amin.'));assert.ok(b.includes('google.com/maps/search/?api=1'));assert.ok(/"addressLocality": "Butuan City"/.test(b)&&/"addressCountry": "PH"/.test(b));assert.ok(b.includes('Tawag para sa presyo ngayon'));assert.ok(rd('app.js').includes('Purok 2, Ohong-Duque Road, Taguibo, Butuan City'))});
+
+test('v1.6.3 logo files exist, are small, transparent and referenced',()=>{const files=['icons/logo.png','icons/logo-160.png','icons/logo-160.webp','icons/logo-320.webp','icons/favicon-32.png','icons/apple-touch-icon.png','icons/icon-192.png','icons/icon-512.png','icons/og-image.jpg','favicon.ico','buying/og.png'];
+  for(const f of files){const p=path.join(ROOT,f);assert.ok(fs.existsSync(p),f);assert.ok(fs.statSync(p).size<150*1024,f+' under 150 KB')}
+  const png=fs.readFileSync(path.join(ROOT,'icons/logo.png'));assert.equal(png.readUInt32BE(16),512);assert.equal(png.readUInt32BE(20),512);
+  const h=rd('index.html'),b=rd('buying/index.html'),sw=rd('sw.js'),m=JSON.parse(rd('manifest.webmanifest'));
+  assert.ok(h.includes('icons/logo-160.png')&&h.includes('icons/apple-touch-icon.png')&&h.includes('favicon.ico'));
+  assert.ok(h.includes('<meta property="og:image" content="https://copra.johnnybodegas.com/icons/og-image.jpg">')&&h.includes('<meta name="twitter:image" content="https://copra.johnnybodegas.com/icons/og-image.jpg">'));
+  assert.ok(b.includes('../icons/logo-160.png')&&b.includes('../icons/apple-touch-icon.png')&&b.includes('<meta property="og:image" content="https://copra.johnnybodegas.com/buying/og.png">'));
+  assert.ok(m.icons.some(i=>i.src==='icons/logo.png'));for(const f of ['./icons/logo.png','./icons/logo-160.png','./icons/apple-touch-icon.png','./favicon.ico'])assert.ok(sw.includes(f),f);
+  for(const f of ['index.html','buying/index.html','README.md'])assert.ok(!/[\u2013\u2014]/.test(rd(f).split('## v1.6.1')[0]),f)});
