@@ -1,8 +1,8 @@
 // JB Integrated Farm app service worker (cache prefix stays kopra- so old caches are cleaned and data is untouched). SW_VERSION MUST equal APP_VERSION in version.js (unit test enforces it).
 // It is embedded here on purpose: browsers only install a new worker when sw.js bytes change.
-const SW_VERSION='1.6.2';
+const SW_VERSION='1.6.3';
 const V='kopra-'+SW_VERSION;
-const F=['./','./index.html','./app.js','./calc.js','./db.js','./sync.js','./seed.js','./version.js','./style.css','./lib/chart.umd.min.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png'];
+const F=['./','./index.html','./app.js','./calc.js','./db.js','./sync.js','./seed.js','./version.js','./style.css','./lib/chart.umd.min.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/logo.png','./icons/logo-160.png','./icons/logo-160.webp','./icons/logo-320.webp','./icons/apple-touch-icon.png','./icons/favicon-32.png','./favicon.ico'];
 // cache:'reload' so a new release never pre-caches stale files from the HTTP cache.
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(F.map(u=>new Request(u,{cache:'reload'})))));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x.startsWith('kopra-')&&x!==V).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});

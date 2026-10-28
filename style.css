@@ -34,3 +34,5 @@ details{margin-top:10px;border:1px dashed #d9c9a5;border-radius:10px;padding:8px
 
 header .hcall{margin:4px 0 0;font-size:13px;opacity:1}header .hcall a{color:#ffe7a8;font-weight:700;text-decoration:none;display:inline-block;padding:4px 0}
 a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box}
+
+.hbrand{display:flex;align-items:center;gap:10px}.hlogo{width:40px;height:40px;display:block;flex:none;object-fit:contain}
