@@ -1,5 +1,8 @@
-# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.6
+# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.7
 Live site: jbfarmco.com (app) and jbfarmco.com/buying (sales page: we buy whole matured coconuts from farmers).
+
+## v1.6.7: /buying pickup 500 kg+
+- Pickup threshold on `/buying` lowered from 1,000 kg to 500 kg (copy, FAQ, JSON-LD, share image `buying/og.png`). No price added. SW cache `kopra-1.6.7`.
 
 ## v1.6.6: /buying hero VSL
 - `/buying` hero adds a 16:9 VSL video under the headline (`assets/jb-farm-vsl-16x9.mp4`, poster `assets/jb-farm-vsl-16x9-poster.jpg`). Controls only, no autoplay with sound. Video is not SW-precached; `/assets/*.mp4` is network-only in the SW. No price added. SW cache `kopra-1.6.6`.
