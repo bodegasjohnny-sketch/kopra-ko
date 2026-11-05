@@ -1,5 +1,8 @@
-# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.5
+# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.6
 Live site: jbfarmco.com (app) and jbfarmco.com/buying (sales page: we buy whole matured coconuts from farmers).
+
+## v1.6.6: /buying hero VSL
+- `/buying` hero adds a 16:9 VSL video under the headline (`assets/jb-farm-vsl-16x9.mp4`, poster `assets/jb-farm-vsl-16x9-poster.jpg`). Controls only, no autoplay with sound. Video is not SW-precached; `/assets/*.mp4` is network-only in the SW. No price added. SW cache `kopra-1.6.6`.
 
 ## v1.6.5: uling burn colors
 - Uling burns are color coded in Records and the dashboard Uling pool table: Done = green, Burning = yellow (form still says "In kiln (burning)"). Legacy status `sold` shows as Done (same as the app already treats it). Second color key line in Records. No calculation or data changes. SW cache `kopra-1.6.5`.
