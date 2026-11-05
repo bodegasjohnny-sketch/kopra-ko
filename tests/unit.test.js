@@ -102,14 +102,14 @@ test('FIX7 sync errors are surfaced (lastSyncError) and cleared on success',asyn
   const bad={pullSince:async()=>{throw new Error('Server error 500')},upsert:async()=>{}};await assert.rejects(Sync.sync(s,bad),/500/);
   assert.match((await s.meta('lastSyncError')).message,/500/);await Sync.sync(s,TriggerServer());assert.equal(await s.meta('lastSyncError'),null)});
 // ---------- FIX 4 / SF: service worker + files ----------
-test('FIX4 sw never caches Supabase/API/cross-origin; cache name embedded in sw.js',()=>{const ctx={self:{location:{origin:'https://copra.johnnybodegas.com'},addEventListener(){}},URL,caches:{},Request:function(u){this.url=u}};
+test('FIX4 sw never caches Supabase/API/cross-origin; cache name embedded in sw.js',()=>{const ctx={self:{location:{origin:'https://jbfarmco.com'},addEventListener(){}},URL,caches:{},Request:function(u){this.url=u}};
   const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');vm.runInNewContext(src+';this.isApi=isApi;this.V=V',ctx);const u=x=>new URL(x);
-  assert.ok(ctx.isApi(u('https://abc.supabase.co/rest/v1/batches')));assert.ok(ctx.isApi(u('https://copra.johnnybodegas.com/auth/v1/token')));assert.ok(ctx.isApi(u('https://cdn.example.com/x.js')));
-  assert.ok(!ctx.isApi(u('https://copra.johnnybodegas.com/app.js')));const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];
+  assert.ok(ctx.isApi(u('https://abc.supabase.co/rest/v1/batches')));assert.ok(ctx.isApi(u('https://jbfarmco.com/auth/v1/token')));assert.ok(ctx.isApi(u('https://cdn.example.com/x.js')));
+  assert.ok(!ctx.isApi(u('https://jbfarmco.com/app.js')));const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];
   assert.equal(ver,'1.6.5');assert.equal(ctx.V,'kopra-'+ver)});
 test('v1.3.1 BLOCKER1 sw.js embeds the release version (bytes change every release), no importScripts, cache:reload',()=>{const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');
   const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];assert.ok(src.includes(`const SW_VERSION='${ver}'`));assert.ok(!/importScripts/.test(src));assert.ok(src.includes("cache:'reload'"))});
-test('SF CNAME + README signup note',()=>{assert.equal(fs.readFileSync(path.join(ROOT,'CNAME'),'utf8').trim(),'copra.johnnybodegas.com');assert.match(fs.readFileSync(path.join(ROOT,'README.md'),'utf8'),/disable.*sign.?ups/i)});
+test('SF CNAME + README signup note',()=>{assert.equal(fs.readFileSync(path.join(ROOT,'CNAME'),'utf8').trim(),'jbfarmco.com');assert.match(fs.readFileSync(path.join(ROOT,'README.md'),'utf8'),/disable.*sign.?ups/i)});
 test('SF sync UI hidden by default (flag)',()=>{const s=fs.readFileSync(path.join(ROOT,'app.js'),'utf8');assert.ok(s.includes("${FLAGS?`<div class=\"card\" id=\"synccard\">"));assert.ok(s.includes('async function runSync(loud){if(!FLAGS)return;'))});
 
 // ---------- A1 caps ----------

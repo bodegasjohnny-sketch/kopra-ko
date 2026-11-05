@@ -1,5 +1,5 @@
 # JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.5
-Live site: copra.johnnybodegas.com (app) and copra.johnnybodegas.com/buying (sales page: we buy whole matured coconuts from farmers).
+Live site: jbfarmco.com (app) and jbfarmco.com/buying (sales page: we buy whole matured coconuts from farmers).
 
 ## v1.6.5: uling burn colors
 - Uling burns are color coded in Records and the dashboard Uling pool table: Done = green, Burning = yellow (form still says "In kiln (burning)"). Legacy status `sold` shows as Done (same as the app already treats it). Second color key line in Records. No calculation or data changes. SW cache `kopra-1.6.5`.
@@ -94,7 +94,7 @@ Backup import is checked strictly: types, required fields, negatives, caps, vali
 
 ## Releasing
 - Bump `APP_VERSION` in version.js on every release (semver). sw.js names its cache `kopra-<version>` and deletes old `kopra-*` caches.
-- CNAME = copra.johnnybodegas.com (GitHub Pages). Do not deploy until QA gives GO.
+- CNAME = jbfarmco.com (GitHub Pages). Do not deploy until QA gives GO.
 
 ## Cloud sync (v1: OFF by default)
 - To turn it on, add `?sync=1` to the URL. This works **only for that page load**; it is not remembered. To keep it on, set localStorage `kopra_flags` to `sync` from the browser console.

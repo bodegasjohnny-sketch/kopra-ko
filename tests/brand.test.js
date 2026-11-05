@@ -12,7 +12,7 @@ test('storage names kept for data carry-over',()=>{assert.ok(rd('db.js').include
 test('phone links are correct everywhere',()=>{for(const f of ['index.html','app.js','buying/index.html']){const s=rd(f);const tels=s.match(/tel:[^"']+/g)||[];assert.ok(tels.length>0,f);tels.forEach(t=>assert.equal(t,'tel:+639682705321',f))}
   const b=rd('buying/index.html');(b.match(/sms:[^"?]+/g)).forEach(t=>assert.equal(t,'sms:+639682705321'));(b.match(/https:\/\/wa\.me\/[0-9]+/g)).forEach(t=>assert.equal(t,'https://wa.me/639682705321'));
   assert.ok(b.includes('viber://chat?number=%2B639682705321'));const want='Magandang araw po, magbebenta po ako ng buong matandang niyog. Ilang kilo: __ . Lugar: __';[...b.matchAll(/(?:body|text)=([^"]+)/g)].forEach(m=>assert.equal(decodeURIComponent(m[1]),want))});
-test('buying page SEO, JSON-LD and no price claim',()=>{const b=rd('buying/index.html');assert.ok(b.includes('<link rel="canonical" href="https://copra.johnnybodegas.com/buying">'));
+test('buying page SEO, JSON-LD and no price claim',()=>{const b=rd('buying/index.html');assert.ok(b.includes('<link rel="canonical" href="https://jbfarmco.com/buying">'));
   for(const k of ['og:title','og:description','og:image','twitter:card'])assert.ok(b.includes(k),k);
   const ld=[...b.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m=>JSON.parse(m[1]));const org=ld.find(x=>x['@type']==='LocalBusiness');assert.deepEqual(Object.keys(org).sort(),['@context','@type','address','name','telephone','url']);assert.equal(org.address.addressLocality,'Butuan City');assert.equal(org.address.addressCountry,'PH');assert.equal(org.telephone,'+639682705321');
   const faq=ld.find(x=>x['@type']==='FAQPage');assert.ok(faq.mainEntity.length>=6&&faq.mainEntity.length<=8);
@@ -32,8 +32,8 @@ test('v1.6.3 logo files exist, are small, transparent and referenced',()=>{const
   const png=fs.readFileSync(path.join(ROOT,'icons/logo.png'));assert.equal(png.readUInt32BE(16),512);assert.equal(png.readUInt32BE(20),512);
   const h=rd('index.html'),b=rd('buying/index.html'),sw=rd('sw.js'),m=JSON.parse(rd('manifest.webmanifest'));
   assert.ok(h.includes('icons/logo-160.png')&&h.includes('icons/apple-touch-icon.png')&&h.includes('favicon.ico'));
-  assert.ok(h.includes('<meta property="og:image" content="https://copra.johnnybodegas.com/icons/og-image.jpg">')&&h.includes('<meta name="twitter:image" content="https://copra.johnnybodegas.com/icons/og-image.jpg">'));
-  assert.ok(b.includes('../icons/logo-160.png')&&b.includes('../icons/apple-touch-icon.png')&&b.includes('<meta property="og:image" content="https://copra.johnnybodegas.com/buying/og.png">'));
+  assert.ok(h.includes('<meta property="og:image" content="https://jbfarmco.com/icons/og-image.jpg">')&&h.includes('<meta name="twitter:image" content="https://jbfarmco.com/icons/og-image.jpg">'));
+  assert.ok(b.includes('../icons/logo-160.png')&&b.includes('../icons/apple-touch-icon.png')&&b.includes('<meta property="og:image" content="https://jbfarmco.com/buying/og.png">'));
   assert.ok(m.icons.some(i=>i.src==='icons/logo.png'));for(const f of ['./icons/logo.png','./icons/logo-160.png','./icons/apple-touch-icon.png','./favicon.ico'])assert.ok(sw.includes(f),f);
   for(const f of ['index.html','buying/index.html','README.md'])assert.ok(!/[\u2013\u2014]/.test(rd(f).split('## v1.6.1')[0]),f)});
 test('batch status color classes',()=>{const c=rd('style.css'),a=rd('app.js');for(const s of ['sold','part','unsold','drying']){assert.ok(c.includes('.item.st-'+s+'{'));assert.ok(c.includes('.tag.st-'+s+'{'))}assert.ok(a.includes('id="stlegend"'));assert.ok(a.includes('tag st-${esc(b.status)}'))});
