@@ -1,5 +1,8 @@
-# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.3
+# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.4
 Live site: copra.johnnybodegas.com (app) and copra.johnnybodegas.com/buying (sales page: we buy whole matured coconuts from farmers).
+
+## v1.6.4: batch status colors
+- Batch rows in Records, Buying log, Drying log and the on-hand list are color coded: Complete = green, Part sold = amber, Not yet sold = red, Still drying = tan/brown (tinted row, colored left border, colored pill). Color key at the top of Records. No calculation or data changes. SW cache `kopra-1.6.4`.
 
 ## v1.6.3: logo branding
 - New JB Integrated Farm logo (source: `JB_Integrated_Farm_Transparent_5000px.png` in Drive, BRANDS HQ / JB INTEGRATED FARM / 01_Brand Kit). Web versions made with Pillow, transparent, not stretched:

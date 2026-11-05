@@ -36,3 +36,8 @@ header .hcall{margin:4px 0 0;font-size:13px;opacity:1}header .hcall a{color:#ffe
 a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box}
 
 .hbrand{display:flex;align-items:center;gap:10px}.hlogo{width:40px;height:40px;display:block;flex:none;object-fit:contain}
+/* v1.6.4 batch status colors: Complete green, Part sold amber, Not yet sold red, Still drying tan/brown */
+.item.st-sold,.item.st-part,.item.st-unsold,.item.st-drying{border-left:5px solid;border-radius:8px;padding-left:8px;padding-right:6px;margin:4px 0}
+.item.st-sold{background:#e6f3e8;border-left-color:#2e7d4f}.item.st-part{background:#fdf0d8;border-left-color:#c77d0a}.item.st-unsold{background:#fbe4df;border-left-color:#b5462f}.item.st-drying{background:#f3e7d3;border-left-color:#8a5a2b}
+.tag.st-sold{background:#2e7d4f;color:#fff}.tag.st-part{background:#c77d0a;color:#fff}.tag.st-unsold{background:#b5462f;color:#fff}.tag.st-drying{background:#8a5a2b;color:#fff}
+.stlegend{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.stlegend .tag{font-size:11px;padding:3px 8px}
