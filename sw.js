@@ -1,6 +1,6 @@
 // JB Integrated Farm app service worker (cache prefix stays kopra- so old caches are cleaned and data is untouched). SW_VERSION MUST equal APP_VERSION in version.js (unit test enforces it).
 // It is embedded here on purpose: browsers only install a new worker when sw.js bytes change.
-const SW_VERSION='1.6.5';
+const SW_VERSION='1.6.6';
 const V='kopra-'+SW_VERSION;
 const F=['./','./index.html','./app.js','./calc.js','./db.js','./sync.js','./seed.js','./version.js','./style.css','./lib/chart.umd.min.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/logo.png','./icons/logo-160.png','./icons/logo-160.webp','./icons/logo-320.webp','./icons/apple-touch-icon.png','./icons/favicon-32.png','./favicon.ico'];
 // cache:'reload' so a new release never pre-caches stale files from the HTTP cache.
@@ -10,6 +10,8 @@ self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.a
 const isApi=u=>u.origin!==self.location.origin||/\/(rest|auth|realtime|storage|functions)\/v1\//.test(u.pathname);
 // The /buying sales page is a separate static page: network first (fresh copy), cached copy only when offline. It is never answered with the app shell.
 const isBuying=u=>/\/buying(\/|$)/.test(u.pathname);
-self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||isApi(u))return;
+// Big media under /assets is network-only: never precached (not in F) and never runtime-cached.
+const isBigMedia=u=>/\/assets\//.test(u.pathname)&&/\.(mp4|webm|mov|m4v)(\?|$)/i.test(u.pathname);
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||isApi(u)||isBigMedia(u))return;
   if(isBuying(u)){e.respondWith(fetch(e.request).then(n=>{if(n.ok&&n.type==='basic'){const c=n.clone();caches.open(V).then(x=>x.put(e.request,c))}return n}).catch(()=>caches.match(e.request,{ignoreSearch:true}).then(r=>r||Response.error())));return}
   e.respondWith(caches.match(e.request,{ignoreSearch:true}).then(r=>r||fetch(e.request).then(n=>{if(n.ok&&n.type==='basic'){const c=n.clone();caches.open(V).then(x=>x.put(e.request,c))}return n})))});
