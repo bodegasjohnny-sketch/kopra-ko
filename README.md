@@ -1,5 +1,8 @@
-# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.4
+# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.5
 Live site: copra.johnnybodegas.com (app) and copra.johnnybodegas.com/buying (sales page: we buy whole matured coconuts from farmers).
+
+## v1.6.5: uling burn colors
+- Uling burns are color coded in Records and the dashboard Uling pool table: Done = green, Burning = yellow (form still says "In kiln (burning)"). Legacy status `sold` shows as Done (same as the app already treats it). Second color key line in Records. No calculation or data changes. SW cache `kopra-1.6.5`.
 
 ## v1.6.4: batch status colors
 - Batch rows in Records, Buying log, Drying log and the on-hand list are color coded: Complete = green, Part sold = amber, Not yet sold = red, Still drying = tan/brown (tinted row, colored left border, colored pill). Color key at the top of Records. No calculation or data changes. SW cache `kopra-1.6.4`.

@@ -17,7 +17,7 @@ test('buying page SEO, JSON-LD and no price claim',()=>{const b=rd('buying/index
   const ld=[...b.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m=>JSON.parse(m[1]));const org=ld.find(x=>x['@type']==='LocalBusiness');assert.deepEqual(Object.keys(org).sort(),['@context','@type','address','name','telephone','url']);assert.equal(org.address.addressLocality,'Butuan City');assert.equal(org.address.addressCountry,'PH');assert.equal(org.telephone,'+639682705321');
   const faq=ld.find(x=>x['@type']==='FAQPage');assert.ok(faq.mainEntity.length>=6&&faq.mainEntity.length<=8);
   assert.ok(b.includes("var PRICE_TODAY='';"));assert.ok(!/₱\s*\d|PHP\s*[1-9]/.test(b.replace(/\/\/ PRICE:.*\n/,'')));assert.ok(!b.includes('\u2014'));assert.ok(!/serviceWorker|rel="manifest"/.test(b));assert.ok(fs.existsSync(path.join(ROOT,'buying/og.png')))});
-test('version consistency 1.6.4',()=>{const v=rd('version.js').match(/APP_VERSION='([^']+)'/)[1],s=rd('sw.js').match(/SW_VERSION='([^']+)'/)[1];assert.equal(v,'1.6.4');assert.equal(s,v);assert.ok(rd('README.md').includes('v1.6.4'))});
+test('version consistency 1.6.5',()=>{const v=rd('version.js').match(/APP_VERSION='([^']+)'/)[1],s=rd('sw.js').match(/SW_VERSION='([^']+)'/)[1];assert.equal(v,'1.6.5');assert.equal(s,v);assert.ok(rd('README.md').includes('v1.6.5'))});
 test('SW sends /buying to the network, never the app shell',()=>{const s=rd('sw.js');assert.ok(s.includes('isBuying(u)'));assert.ok(!/respondWith\([^)]*index\.html/.test(s))});
 test('buying offer: whole matured coconuts, tagline, 1,000 kg pickup, no dried copra claim',()=>{const b=rd('buying/index.html');
   assert.ok(b.includes('Iwan mo na sa amin ang hassle, kami na ang gagawa ng kopra. Bayad ka sa araw ng bentahan.'));
@@ -37,3 +37,4 @@ test('v1.6.3 logo files exist, are small, transparent and referenced',()=>{const
   assert.ok(m.icons.some(i=>i.src==='icons/logo.png'));for(const f of ['./icons/logo.png','./icons/logo-160.png','./icons/apple-touch-icon.png','./favicon.ico'])assert.ok(sw.includes(f),f);
   for(const f of ['index.html','buying/index.html','README.md'])assert.ok(!/[\u2013\u2014]/.test(rd(f).split('## v1.6.1')[0]),f)});
 test('batch status color classes',()=>{const c=rd('style.css'),a=rd('app.js');for(const s of ['sold','part','unsold','drying']){assert.ok(c.includes('.item.st-'+s+'{'));assert.ok(c.includes('.tag.st-'+s+'{'))}assert.ok(a.includes('id="stlegend"'));assert.ok(a.includes('tag st-${esc(b.status)}'))});
+test('uling burn color classes',()=>{const c=rd('style.css'),a=rd('app.js');for(const s of ['done','burning']){assert.ok(c.includes('.item.st-'+s+'{'));assert.ok(c.includes('.tag.st-'+s+'{'));assert.ok(c.includes('tr.st-'+s+' td{'))}assert.ok(a.includes('id="stlegend2"'))});
