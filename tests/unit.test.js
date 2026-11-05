@@ -106,7 +106,7 @@ test('FIX4 sw never caches Supabase/API/cross-origin; cache name embedded in sw.
   const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');vm.runInNewContext(src+';this.isApi=isApi;this.V=V',ctx);const u=x=>new URL(x);
   assert.ok(ctx.isApi(u('https://abc.supabase.co/rest/v1/batches')));assert.ok(ctx.isApi(u('https://copra.johnnybodegas.com/auth/v1/token')));assert.ok(ctx.isApi(u('https://cdn.example.com/x.js')));
   assert.ok(!ctx.isApi(u('https://copra.johnnybodegas.com/app.js')));const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];
-  assert.equal(ver,'1.6.0');assert.equal(ctx.V,'kopra-'+ver)});
+  assert.equal(ver,'1.6.5');assert.equal(ctx.V,'kopra-'+ver)});
 test('v1.3.1 BLOCKER1 sw.js embeds the release version (bytes change every release), no importScripts, cache:reload',()=>{const src=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');
   const ver=fs.readFileSync(path.join(ROOT,'version.js'),'utf8').match(/APP_VERSION='([\d.]+)'/)[1];assert.ok(src.includes(`const SW_VERSION='${ver}'`));assert.ok(!/importScripts/.test(src));assert.ok(src.includes("cache:'reload'"))});
 test('SF CNAME + README signup note',()=>{assert.equal(fs.readFileSync(path.join(ROOT,'CNAME'),'utf8').trim(),'copra.johnnybodegas.com');assert.match(fs.readFileSync(path.join(ROOT,'README.md'),'utf8'),/disable.*sign.?ups/i)});
@@ -135,7 +135,7 @@ test('A2 backup import rejects bad types, missing fields, negatives, caps, bad r
 test('A2 import drops unknown fields',async()=>{const o=good();o.batches[0].evil='<script>';o.batches[0].__proto_x=1;const st=DB.Store();await st.replaceAll(o);
   assert.ok((await st.snapshot()).batches.every(b=>!('evil' in b)&&!('__proto_x' in b)))});
 test('A2 app escapes status, device tag, batch number; tag hidden when sync off',()=>{const s=fs.readFileSync(path.join(ROOT,'app.js'),'utf8');
-  assert.ok(s.includes("const bl=r=>esc('#'+(Number.isInteger(r.no)?r.no:'?')+(FLAGS&&r.dev?'-'+r.dev:''))"));assert.ok(s.includes("<td>${esc(b.status==='burning'?'in kiln':'done')}</td>"));assert.ok(s.includes('· ${esc(c.status)}'));
+  assert.ok(s.includes("const bl=r=>esc('#'+(Number.isInteger(r.no)?r.no:'?')+(FLAGS&&r.dev?'-'+r.dev:''))"));assert.ok(s.includes("${esc(b.status==='burning'?'in kiln':'done')}</span></td>"));assert.ok(s.includes("${c.status==='burning'?'Burning':'Done'}"));
   assert.ok(!/\$\{(b|c|r)\.(status|dev|no)\}/.test(s))});
 test('A cosmetic README: ?sync=1 is per page load',()=>{const r=fs.readFileSync(path.join(ROOT,'README.md'),'utf8');assert.match(r,/only for that page load/);assert.match(r,/200,000/)});
 

@@ -34,3 +34,15 @@ details{margin-top:10px;border:1px dashed #d9c9a5;border-radius:10px;padding:8px
 
 header .hcall{margin:4px 0 0;font-size:13px;opacity:1}header .hcall a{color:#ffe7a8;font-weight:700;text-decoration:none;display:inline-block;padding:4px 0}
 a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box}
+
+.hbrand{display:flex;align-items:center;gap:10px}.hlogo{width:40px;height:40px;display:block;flex:none;object-fit:contain}
+/* v1.6.4 batch status colors: Complete green, Part sold amber, Not yet sold red, Still drying tan/brown */
+.item.st-sold,.item.st-part,.item.st-unsold,.item.st-drying{border-left:5px solid;border-radius:8px;padding-left:8px;padding-right:6px;margin:4px 0}
+.item.st-sold{background:#e6f3e8;border-left-color:#2e7d4f}.item.st-part{background:#fdf0d8;border-left-color:#c77d0a}.item.st-unsold{background:#fbe4df;border-left-color:#b5462f}.item.st-drying{background:#f3e7d3;border-left-color:#8a5a2b}
+.tag.st-sold{background:#2e7d4f;color:#fff}.tag.st-part{background:#c77d0a;color:#fff}.tag.st-unsold{background:#b5462f;color:#fff}.tag.st-drying{background:#8a5a2b;color:#fff}
+.stlegend{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.stlegend .tag{font-size:11px;padding:3px 8px}
+/* v1.6.5 uling burn colors: Done green, Burning (in kiln) yellow */
+.item.st-done,.item.st-burning{border-left:5px solid;border-radius:8px;padding-left:8px;padding-right:6px;margin:4px 0}
+.item.st-done{background:#e6f3e8;border-left-color:#2e7d4f}.item.st-burning{background:#fff6cc;border-left-color:#d4a106}
+.tag.st-done{background:#2e7d4f;color:#fff}.tag.st-burning{background:#f2c418;color:#3a2a05;white-space:nowrap}
+tr.st-done td{background:#eef7ef}tr.st-burning td{background:#fff6cc}tr.st-done td:first-child{box-shadow:inset 4px 0 #2e7d4f}tr.st-burning td:first-child{box-shadow:inset 4px 0 #d4a106}

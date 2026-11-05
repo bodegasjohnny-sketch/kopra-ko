@@ -1,5 +1,25 @@
-# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.0
+# JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.5
 Live site: copra.johnnybodegas.com (app) and copra.johnnybodegas.com/buying (sales page: we buy whole matured coconuts from farmers).
+
+## v1.6.5: uling burn colors
+- Uling burns are color coded in Records and the dashboard Uling pool table: Done = green, Burning = yellow (form still says "In kiln (burning)"). Legacy status `sold` shows as Done (same as the app already treats it). Second color key line in Records. No calculation or data changes. SW cache `kopra-1.6.5`.
+
+## v1.6.4: batch status colors
+- Batch rows in Records, Buying log, Drying log and the on-hand list are color coded: Complete = green, Part sold = amber, Not yet sold = red, Still drying = tan/brown (tinted row, colored left border, colored pill). Color key at the top of Records. No calculation or data changes. SW cache `kopra-1.6.4`.
+
+## v1.6.3: logo branding
+- New JB Integrated Farm logo (source: `JB_Integrated_Farm_Transparent_5000px.png` in Drive, BRANDS HQ / JB INTEGRATED FARM / 01_Brand Kit). Web versions made with Pillow, transparent, not stretched:
+  - `icons/logo.png` (512), `icons/logo-160.png|webp` and `icons/logo-320.webp` (header, 2x), `icons/favicon-32.png`, `favicon.ico` (16/32/48), `icons/apple-touch-icon.png` (180, green background).
+  - App icons `icons/icon-192.png` and `icons/icon-512.png` are the logo on the brand green `#1f4d3a` with safe padding for maskable.
+  - `icons/og-image.jpg` (1200x630, app share image) and `buying/og.png` (1200x630, /buying share image with logo, now says 1,000 kg pataas).
+- Logo shown in the app header, the /buying header (replaces the dot) and the /buying footer. Text, phone, tagline and layout unchanged.
+- SW cache bumped to `kopra-1.6.3` and the new icons are precached so installed phones refresh their icons.
+- Older notes below still mention v1.6.2 for that release.
+
+## v1.6.1: /buying pickup 1,000 kg+ and address
+
+- Pickup from the seller location for 1,000 kg and above. Below 1,000 kg the seller brings the niyog to Purok 2, Ohong-Duque Road, Taguibo, Butuan City.
+- Address block with Google Maps link, footer address, LocalBusiness JSON-LD address, app About address.
 
 ## v1.6.0: JB Integrated Farm rename + /buying sales page
 - Everything the user sees now says **JB Integrated Farm** (title, header, manifest name, short_name "JB Farm", About card, version line, export file names `jb-farm-backup-<date>.json` and `jb-farm-<date>.csv`). Contact 0968 270 5321 is a tap-to-call link in the header and the About card (Backup tab).
