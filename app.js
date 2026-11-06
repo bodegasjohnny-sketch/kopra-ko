@@ -92,7 +92,7 @@ function wireMetricDetails(){
  Object.entries(cards).forEach(([id,key])=>metricCard($('#'+id),key));
  $('#plsplit').querySelectorAll('.box').forEach((x,i)=>metricTarget(x,['realized','unrealized','total'][i]));
  $('#drying').querySelectorAll('.kpi').forEach(x=>metricTarget(x,'drying'));
- $('#lifesum').querySelectorAll('.kv').forEach(x=>metricTarget(x,'lifetime'));
+ $('#lifesum').querySelectorAll('.kv').forEach((x,i)=>metricTarget(x,['lifeAvgAll','lifeBeAll','lifeBestOp','lifeBestAll'][i]));
  $('#ulingpool').querySelectorAll('.kpi').forEach((x,i)=>metricTarget(x,['bagol','ulingStock','ulingNet','ulingYield'][i]));
  // Sync / settings edits refresh an already-open sheet from the new local snapshot.
  if(metricKey)renderMetricDetails(metricKey);else if(history.state?.jbMetric)displayMetricDetails(history.state.jbMetric);

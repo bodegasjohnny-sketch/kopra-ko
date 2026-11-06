@@ -66,3 +66,14 @@ test('restores a detail history entry after app reload/render without adding ano
  w.eval('render()');assert.equal(dialog.open,true);assert.match(doc.querySelector('#metric-title').textContent,/Unsold copra/);assert.equal(w.history.length,size);
  await back(w,()=>doc.querySelector('#metric-close').click());assert.equal(dialog.open,false);
 });
+
+
+test('each lifetime summary benchmark opens its own matching title and value',async t=>{
+ const {doc}=await setup(t);
+ for(const row of doc.querySelectorAll('#lifesum .kv')){
+  const label=row.querySelector('span').textContent,value=row.querySelector('b').textContent;
+  row.click();assert.equal(doc.querySelector('#metric-title').textContent,label);
+  assert.equal(doc.querySelector('#metric-value').textContent,value+'/kg copra');
+  assert.ok(doc.querySelector('#metric-body details'),'keeps the shared underlying lifetime records');
+ }
+});
