@@ -1,6 +1,16 @@
 # JB Integrated Farm (formerly Kopra Ko): offline copra + uling tracker (PWA) v1.6.7
 Live site: jbfarmco.com (app) and jbfarmco.com/buying (sales page: we buy whole matured coconuts from farmers).
 
+## Review branch: traceable Home cards (not released)
+- Tap any Home metric/card, or its **Records & formula** button, for a read-only local detail sheet. Stock stages, all eight headline KPIs, bid numbers, lifetime selling benchmarks, sold/stock profit allocation, drying projections and back-tests, stock, elapsed-time rates, charts, expenses/budgets, uling pool and sharing are covered.
+- `Calc.explain(snapshot, computed, key)` reads the same snapshot as the dashboard. It lists formulas, inputs, contributing/excluded records and empty states. It does not change `compute()`, persist anything or contact a service. Dynamic record text is escaped at the rendering boundary.
+- Partial sales retain the existing pro-rata sold/stock cost basis. Combined and sharing use **realized copra**, not cash copra net. Unassigned sales keep revenue but do not acquire invented costs; their lineage batches stay excluded from yield/bid/projections. Linked Uling-category bills retain the existing inclusion in both batch costs and Uling costs (no reclassification).
+- Uling with no logged costs is explicitly **gross**, not fully costed profit; logging some costs does not prove all burning costs are recorded. Estimates and unsold stock are not sales.
+- Sheet uses native modal `dialog`, scrollable record tables, labelled controls, keyboard activation, focus restoration, Escape, Close and browser Back/Forward. Open details refresh after local snapshot changes.
+- Test setup: `npm ci`, then `npm test` (calculation + jsdom DOM regression tests, synthetic fixtures only); `npm run lint` runs JavaScript syntax checks. jsdom is a development-only dependency, never loaded by the app. This static app has no build step.
+- No browser or visual verification was performed for this branch. Manual QA: at mobile width, open every card; swipe record tables; test Enter/Space, Tab within the sheet, Escape, Close, Back/Forward, and the existing Mark as sold action. Use a disposable profile / synthetic records, not a public device backup.
+- IndexedDB, backup/import, sync, CNAME, Pages configuration, version and service worker are unchanged. Before any separately approved release, follow the existing release process to bump matching app/SW versions so installed offline clients refresh; this PR is review-only and does not deploy.
+
 ## v1.6.7: /buying pickup 500 kg+
 - Pickup threshold on `/buying` lowered from 1,000 kg to 500 kg (copy, FAQ, JSON-LD, share image `buying/og.png`). No price added. SW cache `kopra-1.6.7`.
 

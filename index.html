@@ -15,5 +15,9 @@
 </main>
 <nav><button data-v="home" class="on"><b>🏠</b>Home</button><button data-v="add"><b>➕</b>Add</button><button data-v="life"><b>🏗️</b>Lifetime</button><button data-v="rec"><b>📒</b>Records</button><button data-v="more"><b>⚙️</b>Backup</button></nav>
 <div class="toast" id="toast"></div>
+<dialog id="metric-details" aria-labelledby="metric-title" aria-describedby="metric-scope">
+ <div class="detail-panel"><div class="detail-head"><div><h2 id="metric-title"></h2><p id="metric-value"></p></div><button type="button" id="metric-close" aria-label="Close records and formula">Close ✕</button></div>
+ <p id="metric-scope" class="sub">Local device records · read-only · no upload</p><div id="metric-body"></div></div>
+</dialog>
 <script src="lib/chart.umd.min.js"></script><script src="seed.js"></script><script src="version.js"></script><script src="db.js"></script><script src="sync.js"></script><script src="calc.js"></script><script src="app.js"></script>
 </body></html>
