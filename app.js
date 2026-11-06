@@ -17,9 +17,9 @@ async function load(){D=await store.snapshot();K=Calc.compute(D,today());window.
 function bidHTML(b,small){
  const exNote=b.excluded?`<div class="note" id="bidexcluded">⏸ ${K.pending.map(p=>bl(p)+' '+esc(p.source)).join(', ')} not used in yield / bid / projections until its unassigned copra sale is assigned (Records → edit the sale).</div>`:'';
  if(!b.hasData)return exNote+`<div class="note" id="bidempty">No finished batches yet. Add a buy batch with its dried copra kg to see bid prices.</div>`;
- return `<div class="g3"><div class="box good"><div class="t">✅ GOOD BID</div><div class="p">${P(b.good)}</div><div class="d">Pay this or lower. Good bid = break-even minus ${P(b.margin)} margin (change in Settings).</div></div>
- <div class="box be"><div class="t">⚖️ BREAK-EVEN${b.gasOnly?' (gas costs only)':''}</div><div class="p">${P(b.be)}</div><div class="d">Zero profit for both partners, copra only. Rounded down.${b.gasOnly?' <b>Real break-even is lower once other costs are logged.</b>':''}</div></div>
- <div class="box loss"><div class="t">❌ LOSS</div><div class="p">above ${P(b.be)}</div><div class="d">Any bid higher = lugi.</div></div></div>
+ return `<div class="g3"><div class="box good" data-detail="goodBid" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="metric-details"><div class="t">✅ GOOD BID</div><div class="p">${P(b.good)}</div><div class="d">Pay this or lower. Good bid = break-even minus ${P(b.margin)} margin (change in Settings).</div></div>
+ <div class="box be" data-detail="breakEven" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="metric-details"><div class="t">⚖️ BREAK-EVEN${b.gasOnly?' (gas costs only)':''}</div><div class="p">${P(b.be)}</div><div class="d">Zero profit for both partners, copra only. Rounded down.${b.gasOnly?' <b>Real break-even is lower once other costs are logged.</b>':''}</div></div>
+ <div class="box loss" data-detail="lossBid" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="metric-details"><div class="t">❌ LOSS</div><div class="p">above ${P(b.be)}</div><div class="d">Any bid higher = lugi.</div></div></div>
  ${small?'':`<p class="sub" style="margin-top:8px"><b>How:</b> Yield <b>${pc(b.yield)}</b> × Copra price <b>${P(b.sell)}</b>/kg (from Settings) − Expenses <b>${P(b.expPerKg)}</b>/kg raw${b.gasOnly?' (gas only — labor, sacks, meals not logged yet)':''} = <b>${P(b.be)}</b>.</p>`}
  ${b.lifeOn?`<div class="note" id="bidlife">🏗️ <b>Lifetime costs included:</b> bid lowered by ${P(b.lifePerKg)}/kg raw (capital + lifetime expenses ÷ raw kg so far). Turn off in Settings.</div>`:''}${exNote}<div class="note">🔥 Uling income is a <b>bonus cushion</b>, not counted. Unsold stock does not change the bid (it uses yield).</div>`}
 
@@ -54,10 +54,10 @@ function render(){
   <table><tr><th>Rate</th><th>Per week</th><th>Per month</th></tr><tr><td>Raw bought</td><td>${N(t.rawWk)} kg</td><td>${N(t.rawMo)} kg</td></tr>
   <tr><td>Copra made</td><td>${N(t.copraWk)} kg</td><td>${N(t.copraMo)} kg</td></tr><tr><td>Copra net</td><td>${P0(t.netWk)}</td><td>${P0(t.netMo)}</td></tr>
   <tr><td>Each partner</td><td>${P0(t.netWk/2)}</td><td>${P0(t.netMo/2)}</td></tr></table><p class="sub" style="margin-top:6px">Month = 30.44 days. Simple averages since start.</p></div></div>
- <div class="card"><h2>Price tracker</h2><p class="sub">₱/kg raw: your buy price vs Asarez vs break-even per batch</p><div class="ch"><canvas id="cPrice"></canvas></div></div>
- <div class="card"><h2>Copra selling price</h2><div class="ch" style="height:180px"><canvas id="cSell"></canvas></div></div>
- <div class="card"><h2>Lifetime P&amp;L</h2><p class="sub">Net per batch (bars) + running total (line)</p><div class="ch"><canvas id="cPL"></canvas></div></div>
- <div class="two"><div class="card"><h2>Gastos (expenses)</h2><div class="ch" style="height:170px"><canvas id="cExp"></canvas></div>${Object.entries(K.byCat).map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><b>${P(v)} · ${P(v/K.raw)}/kg</b></div>`).join('')}</div>
+ <div class="card" id="pricechart"><h2>Price tracker</h2><p class="sub">₱/kg raw: your buy price vs Asarez vs break-even per batch</p><div class="ch"><canvas id="cPrice"></canvas></div></div>
+ <div class="card" id="sellchart"><h2>Copra selling price</h2><div class="ch" style="height:180px"><canvas id="cSell"></canvas></div></div>
+ <div class="card" id="plchart"><h2>Lifetime P&amp;L</h2><p class="sub">Net per batch (bars) + running total (line)</p><div class="ch"><canvas id="cPL"></canvas></div></div>
+ <div class="two"><div class="card" id="expenseschart"><h2>Gastos (expenses)</h2><div class="ch" style="height:170px"><canvas id="cExp"></canvas></div>${Object.entries(K.byCat).map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><b>${P(v)} · ${P(v/K.raw)}/kg</b></div>`).join('')}</div>
  <div class="card" id="budget"><h2>Expense budget per kg raw</h2><p class="sub">Suggested starting caps (not real costs) vs actual. Room before zero profit: <b>${P(K.room)}/kg</b></p>
   <table><tr><th>Category</th><th>Cap/kg</th><th>Actual/kg</th></tr>${K.budget.map(b=>`<tr><td>${esc(b.cat)}</td><td>${P(b.budgetPerKg)}</td><td class="${b.actualPerKg>b.budgetPerKg?'neg':''}">${P(b.actualPerKg)}</td></tr>`).join('')}</table>
   <div class="note" id="merienda">🍞 <b>Merienda cap:</b> ${P(K.meri.capPerKg)}/kg raw ≈ ${P0(K.meri.capBatch)} per batch · ${P0(K.meri.capTotal)} total so far. Spent: <b>${P(K.meri.spent)}</b> (${P(K.meri.perKg)}/kg) ${K.meri.perKg>K.meri.capPerKg?'⚠️ over cap':'✓ within cap'}</div></div></div>
@@ -69,9 +69,9 @@ function render(){
   <div class="tw"><table><tr><th>Burn</th><th>Bagol</th><th>Uling</th><th>Yield</th><th>Status</th></tr>${c.burns.filter(x=>!x.deleted).sort((a,b)=>a.no-b.no).map(b=>`<tr class="st-${b.status==='burning'?'burning':'done'}"><td>${bl(b)}</td><td>${N(b.bagolKg)}</td><td>${b.ulingKg?N(b.ulingKg):'—'}</td><td>${b.ulingKg?pc(b.ulingKg/b.bagolKg):'—'}</td><td><span class="tag st-${b.status==='burning'?'burning':'done'}">${esc(b.status==='burning'?'in kiln':'done')}</span></td></tr>`).join('')}</table></div>
   <p class="sub" style="margin-top:6px">${c.usales.length} uling sales from the pool · ${N(c.ulingSoldKg)} kg · ${P(c.ulingSales)}. Break-even if buying bagol: ${P(c.bagolBE)}/kg bagol (at ${P(s.ulingPrice)} uling).</p></div>
  <div class="card" id="share"><h2>50/50 sharing</h2><div class="kv"><span>Copra realized</span><b>${P(K.realized/2)} each</b></div><div class="kv"><span>${c.hasCosts?"Uling net":"Uling gross (no costs logged)"}</span><b>${P(c.ulingNet/2)} each</b></div><div class="kv"><span><b>${esc(s.partners[0])}</b></span><b>${P(K.share)}</b></div><div class="kv"><span><b>${esc(s.partners[1])}</b></span><b>${P(K.share)}</b></div></div>
- <div class="card"><h2>Per-batch table</h2><p class="sub">Swipe → on phone</p><div class="tw"><table id="tbl"><tr><th>#</th><th>Source</th><th>Raw kg</th><th>Buy/kg</th><th>Asarez</th><th>Status</th><th>Proj. copra</th><th>Copra kg</th><th>Var.</th><th>Yield</th><th>Sold kg</th><th>On hand</th><th>Sell ₱</th><th>Exp</th><th>Net</th><th>B-E</th></tr>
+ <div class="card" id="batchtable"><h2>Per-batch table</h2><p class="sub">Swipe → on phone</p><div class="tw"><table id="tbl"><tr><th>#</th><th>Source</th><th>Raw kg</th><th>Buy/kg</th><th>Asarez</th><th>Status</th><th>Proj. copra</th><th>Copra kg</th><th>Var.</th><th>Yield</th><th>Sold kg</th><th>On hand</th><th>Sell ₱</th><th>Exp</th><th>Net</th><th>B-E</th></tr>
   ${K.rows.map(r=>`<tr><td>${bl(r)}</td><td>${esc(r.source)}</td><td>${N(r.rawKg,1)}</td><td>${P(r.buy)}</td><td>${r.asarez?P(r.asarez):'—'}</td><td>${esc(r.statusLabel)}</td><td>${r.proj?N(r.proj.copra):'—'}</td><td>${r.copraKg?N(r.copraKg,1):'—'}</td><td class="${r.proj&&r.proj.variancePct!=null?(r.proj.inRange?'':'neg'):''}">${r.proj&&r.proj.variancePct!=null?(r.proj.variancePct>=0?'+':'')+(r.proj.variancePct*100).toFixed(1)+'%':'—'}</td><td>${r.yield?pc(r.yield):'—'}</td><td>${N(r.soldKg,1)}</td><td>${N(r.onHand,1)}</td><td>${P(r.sellPrice)}</td><td>${P(r.exp)}</td><td class="${r.net>=0?'pos':'neg'}">${P(r.net)}</td><td>${r.be?P(r.be):'—'}</td></tr>`).join('')}</table></div></div>`;
- drawCharts();renderForm();renderRecords();renderLife();renderMore();
+ drawCharts();renderForm();renderRecords();renderLife();renderMore();wireMetricDetails();
 }
 function drawCharts(){if(!window.Chart)return;Object.values(charts).forEach(c=>c.destroy());charts={};
  const R=K.rows,L=R.map(bl),o={maintainAspectRatio:false,animation:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}}}};
@@ -80,6 +80,39 @@ function drawCharts(){if(!window.Chart)return;Object.values(charts).forEach(c=>c
  let c=0;charts.pl=new Chart($('#cPL'),{data:{labels:L,datasets:[{type:'line',label:'Running total',data:R.map(r=>c+=r.net),borderColor:'#1f4d3a',yAxisID:'y1'},{type:'bar',label:'Net per batch',data:R.map(r=>r.net),backgroundColor:R.map(r=>r.net<0?'#b5462f':'#e0a526')}]},options:{...o,scales:{y1:{position:'right',grid:{display:false}}}}});
  const cats=Object.keys(K.byCat);charts.e=new Chart($('#cExp'),{type:'doughnut',data:{labels:cats,datasets:[{data:cats.map(k=>K.byCat[k]),backgroundColor:['#1f4d3a','#e0a526','#7a5230','#b5462f','#2e7d4f','#a47148','#6f6a5e','#d9c9a5','#4f9a6b','#333']}]},options:o});
 }
+// ---------- Read-only Home drill-downs (no data leaves the device) ----------
+let metricKey=null,metricTrigger=null;
+function metricTarget(el,key){if(!el)return;el.dataset.detail=key;el.setAttribute('role','button');el.tabIndex=0;el.setAttribute('aria-haspopup','dialog');el.setAttribute('aria-controls','metric-details');el.setAttribute('aria-label',el.textContent.trim()+' · Records and formula');}
+function metricCard(el,key){if(!el)return;el.dataset.detail=key;const h=el.querySelector('h2');if(h&&!h.querySelector('.detail-link')){const b=document.createElement('button');b.type='button';b.className='detail-link';b.dataset.detail=key;b.textContent='Records & formula';b.setAttribute('aria-label',h.textContent+' · Records and formula');b.setAttribute('aria-haspopup','dialog');b.setAttribute('aria-controls','metric-details');h.append(b);}}
+function wireInventoryDetails(el){if(!el)return;metricCard(el,'inventory');el.querySelectorAll('.box').forEach((x,i)=>metricTarget(x,['rawUndried','onHand','sold'][i]));}
+function wireMetricDetails(){
+ wireInventoryDetails($('#inv'));wireInventoryDetails($('#addinv'));
+ $('#kpis').querySelectorAll('.kpi').forEach((x,i)=>metricTarget(x,['copraNet','combined','share','capital','avgBuy','netPerKg','raw','yield'][i]));
+ const cards={bidguide:'bid',lifesum:'lifetime',plsplit:'profit',unassigned:'unassigned',drying:'drying',stock:'stock',duration:'duration',pricechart:'priceChart',sellchart:'sellChart',plchart:'plChart',expenseschart:'expenses',budget:'budget',charcoal:'charcoal',share:'share',batchtable:'batches'};
+ Object.entries(cards).forEach(([id,key])=>metricCard($('#'+id),key));
+ $('#plsplit').querySelectorAll('.box').forEach((x,i)=>metricTarget(x,['realized','unrealized','total'][i]));
+ $('#drying').querySelectorAll('.kpi').forEach(x=>metricTarget(x,'drying'));
+ $('#lifesum').querySelectorAll('.kv').forEach((x,i)=>metricTarget(x,['lifeAvgAll','lifeBeAll','lifeBestOp','lifeBestAll'][i]));
+ $('#ulingpool').querySelectorAll('.kpi').forEach((x,i)=>metricTarget(x,['bagol','ulingStock','ulingNet','ulingYield'][i]));
+ // Sync / settings edits refresh an already-open sheet from the new local snapshot.
+ if(metricKey)renderMetricDetails(metricKey);else if(history.state?.jbMetric)displayMetricDetails(history.state.jbMetric);
+}
+function renderMetricDetails(key){const d=Calc.explain(D,K,key,FLAGS);if(!d)return false;
+ $('#metric-title').textContent=d.title;$('#metric-value').textContent=d.value;
+ $('#metric-body').innerHTML=`<h3>Formula and inputs</h3><dl class="detail-formulas">${d.lines.map(x=>`<dt>${esc(x.label)}</dt><dd>${esc(x.formula)}<strong>${esc(x.value)}</strong></dd>`).join('')}</dl>
+ <h3>Inclusions, exclusions & caveats</h3><ul class="detail-notes">${d.notes.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+ <h3>Underlying records</h3><p class="sub">Swipe tables sideways on a phone. Expand or collapse each list.</p>${d.groups.map(g=>`<details open><summary>${esc(g.title)} (${g.rows.length})</summary>${g.rows.length?`<div class="tw detail-table" tabindex="0" role="region" aria-label="${esc(g.title)}"><table><caption>${esc(g.title)}</caption><thead><tr>${g.columns.map(c=>`<th scope="col">${esc(c)}</th>`).join('')}</tr></thead><tbody>${g.rows.map(r=>`<tr>${r.cells.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:`<p class="note">${esc(g.empty)}</p>`}</details>`).join('')}`;
+ return true;
+}
+function displayMetricDetails(key){if(!renderMetricDetails(key))return;metricKey=key;const dialog=$('#metric-details');if(!dialog.open){dialog.showModal();document.body.classList.add('metric-open');$('#metric-close').focus();}}
+function openMetricDetails(key,trigger){if(!Calc.DETAIL_KEYS.includes(key))return;metricTrigger=trigger||document.activeElement;if(!metricKey)history.pushState({...history.state,jbMetric:key},'');else history.replaceState({...history.state,jbMetric:key},'');displayMetricDetails(key);}
+function finishMetricDetails(){const key=metricKey;metricKey=null;const dialog=$('#metric-details');if(dialog.open)dialog.close();document.body.classList.remove('metric-open');const target=metricTrigger?.isConnected?metricTrigger:Array.from(document.querySelectorAll('button[data-detail],[role="button"][data-detail]')).find(x=>x.dataset.detail===key);target?.focus({preventScroll:true});metricTrigger=null;}
+function closeMetricDetails(){if(history.state?.jbMetric)history.back();else finishMetricDetails();}
+$('#metric-close').onclick=closeMetricDetails;
+$('#metric-details').addEventListener('cancel',ev=>{ev.preventDefault();closeMetricDetails()});
+$('#metric-details').addEventListener('click',ev=>{if(ev.target===$('#metric-details'))closeMetricDetails()});
+window.addEventListener('popstate',ev=>{if(ev.state?.jbMetric&&D)displayMetricDetails(ev.state.jbMetric);else if(metricKey)finishMetricDetails()});
+document.addEventListener('keydown',ev=>{const x=ev.target.closest('[role="button"][data-detail]');if(x&&(ev.key==='Enter'||ev.key===' ')){ev.preventDefault();openMetricDetails(x.dataset.detail,x)}});
 // ---------- v1.4 lifetime (capital + one-off lifetime expenses; separate from daily Gastos) ----------
 const PAID=()=>({p1:S().partners[0],p2:S().partners[1],shared:'Shared 50/50'});
 const pr=n=>n==null?'—':P(n);
@@ -132,7 +165,7 @@ function invHTML(id){const I=K.inv;return `<div class="card inv" id="${id}"><h2>
  <div class="box ib2"><div class="t">📦 Copra on hand</div><div class="p">${N(I.onHand,1)} kg</div><div class="d">dried, not sold · not income</div></div>
  <div class="box ib3"><div class="t">💰 Sold</div><div class="p">${N(I.soldKg,1)} kg</div><div class="d">counted as income</div></div></div></div>`}
 const PB=k=>k?esc(PAID()[k]||''):'';
-function renderTrackers(){const el=$('#trklog');if(!el)return;$('#addinv').outerHTML=invHTML('addinv');let h='';
+function renderTrackers(){const el=$('#trklog');if(!el)return;$('#addinv').outerHTML=invHTML('addinv');wireInventoryDetails($('#addinv'));let h='';
  if(form==='buy'){const L=K.rows.slice().reverse();h=`<div class="card" id="buylog"><h2>Buying log</h2>${L.length?L.map(r=>`<div class="item st-${esc(r.status)}"><span>🛒 ${bl(r)} ${esc(r.source)} · ${N(r.rawKg)} kg @ ${P(r.buy)}<br><span class="sub">${esc(r.date||'no date')}${r.paidBy?' · paid by '+PB(r.paidBy):''} · <span class="tag st-${esc(r.status)}">${esc(r.statusLabel)}</span></span></span><span style="white-space:nowrap">${r.status==='drying'?`<button class="sell" data-dry="${esc(r.id)}">🌞 Dry</button> `:''}<button data-ted="batches|${esc(r.id)}">Edit</button></span></div>`).join(''):'<div class="note">No buys yet.</div>'}</div>`}
  if(form==='dry'){const W=K.rows.filter(r=>r.status==='drying').reverse(),Dd=K.rows.filter(r=>r.copraKg>0).reverse();
   h=`<div class="card" id="drylog"><h2>Yield log</h2>${W.length?`<p class="sub"><b>Waiting to dry:</b> ${W.map(r=>bl(r)+' '+esc(r.source)+' ('+N(r.rawKg)+' kg)').join(', ')}</p>`:''}
@@ -234,7 +267,9 @@ function renderRecords(){const rows=[];
  $('#v-rec').innerHTML=`<div class="card"><h2>Records (edit / delete)</h2><p class="sub">Deleted entries are kept hidden for sync and can be restored from backup.</p>${STLEGEND}${rows.map(([t,r,l,c])=>`<div class="item${c||''}"><span>${l}</span><span style="white-space:nowrap">${t==='batches'&&(r.status==='unsold'||r.status==='part')?`<button class="sell" data-sell="${esc(r.id)}">Sold</button> `:''}<button data-ed="${esc(t+'|'+r.id)}">Edit</button> <button class="del" data-del="${esc(t+'|'+r.id)}">🗑</button></span></div>`).join('')}</div>`;
 }
 let preBatch=null;
-document.addEventListener('click',async ev=>{const led=ev.target.dataset?.led,ldel=ev.target.dataset?.ldel;
+document.addEventListener('click',async ev=>{const target=ev.target.closest('[data-detail]');
+ if(target&&!ev.target.closest('button:not([data-detail]),a,input,select,summary')){openMetricDetails(target.dataset.detail,ev.target.closest('[role="button"],button[data-detail]')||target.querySelector('.detail-link'));return}
+ const led=ev.target.dataset?.led,ldel=ev.target.dataset?.ldel;
  if(led){lifeEd=D.lifetime_items.find(x=>x.id===led);renderLife();window.scrollTo(0,$('#lifeform').offsetTop-70);return}
  if(ldel){if(!(window.__AUTOCONFIRM__||confirm('Delete this lifetime item?')))return;await store.remove('lifetime_items',ldel);if(lifeEd&&lifeEd.id===ldel)lifeEd=null;await load();toast('Deleted');sched();return}
  const pk=ev.target.closest&&ev.target.closest('.pick button');if(pk){pk.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===pk));return}
